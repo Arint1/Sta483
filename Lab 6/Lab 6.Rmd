@@ -1,0 +1,158 @@
+---
+title: "Lab 6"
+author: "Alex Rintamaa"
+date: '2024-03-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(TSA)
+data("ma1.1.s")
+data("ma2.s")
+data("ar1.s")
+data("ar2.s")
+library(ggplot2)
+library(stats)
+library(forecast)
+library(gridExtra)
+```
+
+
+
+```{r}
+ma1_ts <- ts(ma1.1.s)
+
+plot1 <- autoplot(ma1_ts) + 
+  labs(y="y", x="Time") + 
+  ggtitle("MA(1) Process") + 
+  theme_minimal()
+
+
+plot2 <- ggAcf(ma1_ts)
+
+length(ma1_ts)
+y1 <- ma1_ts[1:119]
+y2 <- ma1_ts[2:120]
+ma1_dat <- data.frame(y1,y2)
+
+plot3 <- ggplot(ma1_dat, aes(y1, y2)) +
+  geom_point()
+
+length(ma1_ts)
+py1 <- ma1_ts[1:118]
+py2 <- ma1_ts[3:120]
+ma2_dat <- data.frame(py1, py2)
+
+plot4 <- ggplot(ma2_dat, aes(py1, py2)) +
+  labs(x = "y_1", y = "y_3") +
+  geom_point()
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+```
+
+Looking at the plots above, we can see both a constant mean and a constant variance. Both are not affected by an increase in time. Looking at the ACF plot it can be seen that there is a very quick exponential decay in the beginning, and then the data stays constant throughout. Looking at the lag K of 1 scatter plot, we can see a slight negative trend. Whereas when we look at the Lag K of 2 scatter plot, we can see no correlation thus telling us that lag K is not depending on time. Because of all of this, we can say that this TS is not stationary.
+
+
+```{r}
+
+ma2_ts <- ts(ma2.s)
+
+plot1 <- autoplot(ma2_ts) + 
+  labs(y="y", x="Time") + 
+  ggtitle("MA(2) Process") + 
+  theme_minimal()
+
+
+plot2 <- ggAcf(ma2_ts)
+
+length(ma1_ts)
+y1 <- ma2_ts[1:119]
+y2 <- ma2_ts[2:120]
+ma2_dat <- data.frame(y1,y2)
+
+plot3 <- ggplot(ma2_dat, aes(y1, y2)) +
+  geom_point()
+
+length(ma2_ts)
+py1 <- ma2_ts[1:118]
+py2 <- ma2_ts[3:120]
+ma3_dat <- data.frame(py1, py2)
+
+plot4 <- ggplot(ma3_dat, aes(py1, py2)) +
+  labs(x = "y_1", y = "y_3") +
+  geom_point()
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+```
+
+Looking at the plots above, we can see that the autoplot shows us a constant mean around the value zero, and a constant variance. Looking at the ACF plot, it can be seen that there is a quick exponential decay in the beginning and then a constant decay around the value 0. Looking at the Lag K=1 value, we can see a very strong negative correlation between the y1 and y2. Looking at the Lag K=2 value, it can be seen that the correlation is very close to zero, showing no dependence of y on Lag K=2. With all of this we can make say that this TS is stationary.
+
+
+```{r}
+ar1_ts <- ts(ar1.s)
+
+plot1 <- autoplot(ar1_ts) + 
+  labs(y="y", x="Time") + 
+  ggtitle("AR(1) Process") + 
+  theme_minimal()
+
+
+plot2 <- ggAcf(ar1_ts)
+
+length(ar1_ts)
+y1 <- ar1_ts[1:119]
+y2 <- ar1_ts[2:120]
+ar1_dat <- data.frame(y1,y2)
+
+plot3 <- ggplot(ar1_dat, aes(y1, y2)) +
+  geom_point()
+
+length(ar1_ts)
+py1 <- ar1_ts[1:118]
+py2 <- ar1_ts[3:120]
+ar2_dat <- data.frame(py1, py2)
+
+plot4 <- ggplot(ar2_dat, aes(py1, py2)) +
+  labs(x = "y_1", y = "y_3") +
+  geom_point()
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+```
+
+Looking at the TS autoplot above, we can see a nonconstant mean, and a relatively non constant variance. Looking at the ACF of the plot, it can be seen that this graph has a really quick exponential decay going into the negatives. Looking a the Lag K=1 plot, we can see a positive depend correlation between the K=1 and the y1 values. Looking at the Lag K=2, we can still see a postive dependent correlation between the K=2 and y1 values, meaning that y is dependent on time. Because lag K=2 is dependent on time, and the autoplot has a nonconstant mean and variance, this TS is not stationary.
+
+
+```{r}
+ar2_ts <- ts(ar2.s)
+
+plot1 <- autoplot(ar2_ts) + 
+  labs(y="y", x="Time") + 
+  ggtitle("AR(2) Process") + 
+  theme_minimal()
+
+
+plot2 <- ggAcf(ar2_ts)
+
+length(ar2_ts)
+y1 <- ar2_ts[1:119]
+y2 <- ar2_ts[2:120]
+ar2_dat <- data.frame(y1,y2)
+
+plot3 <- ggplot(ar2_dat, aes(y1, y2)) +
+  geom_point()
+
+length(ar2_ts)
+py1 <- ar2_ts[1:118]
+py2 <- ar2_ts[3:120]
+ar3_dat <- data.frame(py1, py2)
+
+plot4 <- ggplot(ar3_dat, aes(py1, py2)) +
+  labs(x = "y_1", y = "y_3") +
+  geom_point()
+
+grid.arrange(plot1, plot2, plot3, plot4, ncol = 2)
+```
+
+Looking at the above plots, we can see that the autoplot shows a constant mean, and a high but constant variance. Looking at the ACF we can see a quick exponential decay, however there appears to be neutrality around 0. Looking at the Lag K=1 plot, we can see a depent positive correlation between lag K=1 and y1. Looking at the Lag K=2 plot, there is a slight dependent trend of a positive correlation, however the plot is moving towards 0. Based on the lag K=2 plot, the ACF trend and the constant mena and variance, we can say this TS is stationary.
+
