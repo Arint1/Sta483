@@ -1,0 +1,501 @@
+---
+title: "Forecasting Weekly High-Low Price Differences in Microsoft Stock: A Comparative Analysis of SARIMA and Holt-Winters Models"
+author: "Carter Vonderahe and Alex Rintamaa"
+date: "May 15, 2024"
+output: 
+  pdf_document:
+    latex_engine: pdflatex
+header-includes:
+  - \usepackage[T1]{fontenc}
+  - \usepackage[scaled=0.92]{helvet}
+  - \renewcommand{\familydefault}{\sfdefault}
+  - \usepackage{parskip}  # Add this line for paragraph indentation and spacing
+  - \usepackage{indentfirst}
+  - \setlength{\parskip}{0pt}  # Add this line to remove vertical space between paragraphs
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+\setlength{\parskip}{0pt}
+\setlength{\parindent}{20pt}
+
+
+# Abstract
+
+*This study investigates the efficacy of Seasonal Integrated Autoregressive Moving Average (SARIMA) and additive Holt-Winters exponential smoothing models in forecasting weekly high-low price differences of Microsoft stock, spanning from April 6, 2015, to March 26, 2021, inclusive of the COVID-19 pandemic period. SARIMA, known for its robustness in handling seasonality and trends, underwent rigorous parameter estimation, while Holt-Winters models captured constant seasonal variations. Comparative analysis revealed that the Holt-Winters Season Only model outperformed the SARIMA counterpart, exhibiting superior forecast accuracy and robustness in capturing the impact of the pandemic on stock prices. Results suggest that while SARIMA remains valuable for complex time series patterns, Holt-Winters offers an effective alternative, particularly in scenarios with predominant seasonal variations. These findings demonstrate the importance of employing proper modeling techniques, with implications for financial forecasting and risk management in dynamic market environments, particularly in the face of unpredictable global events.*
+
+
+\newpage
+# 1. Introduction
+
+The stock market's dynamic nature demands robust analytical tools to capture and forecast its intricacies. In this paper, we explore two prominent modeling approaches in time series, Seasonal Integrated Autoregressive Moving Average (SARIMA) and additive Holt-Winters exponential smoothing, to predict the weekly high-low price differences of Microsoft stock. Microsoft is a multinational technology company with focuses in computer software, game development, consumer electronics, and related services. Moreover, it is a fortune 500 company, best known for its Windows operating systems. Microsoft first opened for public sharing of stocks in 1986, however, the scope of this analysis is limited to April 6, 2015 through March 26, 2021, incorporating the effects of the COVID-19 pandemic into the modeling process. Notably, the onset of the pandemic in early 2020 catalyzed a significant surge in price differences, echoing global market disruptions documented by reputable sources such as the Centers for Disease Control and Prevention (CDC) and academic studies. To capture and forecast these dynamics, we deploy SARIMA and Holt-Winters models. SARIMA, renowned for its capability to handle seasonality and trends, undergoes rigorous parameter estimation and model selection. Conversely, Holt-Winters exponential smoothing, with its focus on capturing seasonal variations, offers an alternative approach. Two models, one from each of these techniques, are proposed and compared to illustrate the effectiveness of the two techniques for modeling this particular data. Both models are trained on historical data pre-dating 2021, with forecasts generated for the subsequent 13 weeks of 2021. This paper unfolds as follows: Section 2 details the methodology behind fitting the SARIMA and Holt-Winters models, including data preprocessing and parameter estimation. Section 3 presents the results of model fitting and forecasting, accompanied by a comparative analysis of their performance. Finally, Section 4 concludes with insights into the implications of our findings, limitations of this research, and avenues for future work.
+
+
+# 2. Methods
+
+## 2.1 Data Preprocessing & Exploratory Analysis
+
+The dataset was downloaded from Kaggle and can also be attained using the ‘GOOGLEFINANCE’ command within Google Sheets. It contains 1,511 days (excluding holidays and weekends) of Microsoft stock information, including the date, opening price, high price, low price, closing price, and volume of shares traded from April 1, 2015 to March 31, 2021. The data are aggregated at the weekly level, such that the high and low prices from each week are collected. It is important to note that the first two and last three observations in the original dataset composed incomplete weeks. For this reason, they are discarded prior to the aggregation, and the analysis narrows in scope to April 6, 2015 through March 26, 2021. Each week's low price is then subtracted from its high price, producing a time series of the difference in the weekly high and low price, the measurement of interest to this analysis.
+
+```{r}
+# import libraries
+library(tseries)
+library(forecast)
+library(ggplot2)
+library(stats)
+library(tidyverse)
+library(gridExtra)
+library(knitr)
+library(xts)
+
+# read in data
+microsoft <- read_csv("Microsoft_Stock.csv") %>%
+  mutate(DateTime = as.POSIXct(Date, format = "%m/%d/%Y %H:%M:%S")) %>% # create DateTime variable
+  slice(-c(1:2, 1509:1511)) # remove observations from first and last weeks as they are incomplete weeks
+```
+
+```{r Data Preprocessing}
+#########################
+### DATA PREPROCESSING ###
+#########################
+
+# get weekly highs and lows
+microsoft <- microsoft[order(microsoft$DateTime), ]
+microsoft_xts <- xts(microsoft[, -c(1,2)], order.by = microsoft$DateTime)
+weekly_highs <- apply.weekly(microsoft_xts[,1], FUN = max)
+weekly_lows <- apply.weekly(microsoft_xts[,2], FUN = min)
+
+# make ts for high
+microsoft_ts_high <- ts(as.numeric(weekly_highs), start = c(2015, 14), frequency = 52)
+
+# make ts for low
+microsoft_ts_low <- ts(as.numeric(weekly_lows), start = c(2015, 14), frequency = 52)
+
+# make ts for range
+microsoft_ts_range <- ts(as.numeric(weekly_highs) - as.numeric(weekly_lows), start = c(2015, 14), frequency = 52)
+
+
+# combine high and low into dataframe - probably won't need this, but keeping it for now in case
+microsoft_df <- data.frame(Date = index(weekly_highs),
+                           High = as.numeric(weekly_highs),
+                           Low = as.numeric(weekly_lows))
+```
+
+### Figure 1: Microsoft Weekly High and Low Stock Prices (2015-2021)
+
+\setlength{\parindent}{0pt}
+```{r EDA, fig.fullwidth = TRUE, fig.height=3.75}
+# plot highs and lows
+p1 <- ggplot() +
+  geom_line(data = microsoft_ts_high, aes(x = index(microsoft_ts_high), y = microsoft_ts_high, color = "High")) +
+  geom_line(data = microsoft_ts_low, aes(x = index(microsoft_ts_low), y = microsoft_ts_low, color = "Low")) +
+  geom_vline(xintercept = 2020.194, linetype = 3) + # for covid analysis
+  annotate("text", x = 2019.5, y = 250, label = "COVID-19 declared pandemic", size = 2) + # for covid analysis
+  labs(x = NULL,
+       y = "Price ($)") +
+  scale_x_continuous(breaks = 2015:2021) +
+  scale_color_manual(name = NULL, values = c("High" = "blue", "Low" = "red")) +
+  theme_classic() +
+  theme(
+    legend.position = c(.2, .8)
+  )
+
+ggsave("p1.png")
+
+# plot difference
+p2 <- ggplot() +
+  geom_line(data = microsoft_ts_range, aes(x = index(microsoft_ts_range), y = microsoft_ts_range)) +
+  geom_vline(xintercept = 2020.194, linetype = 3) + # for covid analysis
+  labs(x = NULL,
+       y = "*Price Difference ($)",
+       caption = "Top: weekly high and low prices of Microsoft stock over time
+       Bottom: difference in weekly high and low prices over time
+       *Price Difference = High Price - Low Price") +
+  scale_x_continuous(breaks = 2015:2021) +
+  theme_classic() +
+  theme(
+    plot.caption = element_text(size = 8)
+  )
+
+# plot together
+grid.arrange(p1, p2)
+
+ggsave("p2.png")
+```
+
+Fig. 1 displays the weekly high and low stock prices over the span of the analysis. Naturally, these prices are highly correlated (one would expect that if a given week's high was relatively high, then the low for that week would also be high). Both price measurements exhibit a slow increase through the end of 2016, and throughout 2017 and the following years, they begin to climb at an increasing rate. Additionally, both measurements exhibit more volatility in later years, evident in the increased variability in the corresponding time series from week to week. The difference in these prices expresses a similar pattern in its volatility, where more recent years display more instability. Importantly, the price difference skyrockets in early 2020, aligning with the beginning of the COVID-19 pandemic, which was deemed a global pandemic by the Centers for Disease Control and Prevention (CDC) on March 11, 2020 (CDC, 2023). Global markets were impacted significantly by the COVID-19 pandemic, which affected stock returns, volatilities, and bad state probabilities (i.e. the probability that stock market returns might fall below the expected returns) to an unprecedented degree (Basuony et al., 2021). Microsoft's stock appears to be no exception in this regard.
+\setlength{\parindent}{20pt}
+
+## 2.2 Modeling & Forecasting
+
+Two different modeling approaches are considered to capture characteristics of weekly price differences both before and after the declaration of the COVID-19 pandemic and forecast future realizations: (1) Seasonal Integrated Autoregressive Moving Average (SARIMA) and (2) additive Holt-Winters exponential smoothing. Several models of each type are examined and compared against each other to isolate the best model from either approach. All models are trained on data prior to 2021, and forecasts for the 13 weeks of 2021 are then computed and compared to the true recorded values. Typical error metrics including the Root Mean Square Error (RMSE) and Mean Absolute Error (MAE) are used to evaluate and compare the forecasting performance of models. For the best model from either approach, 95% confidence intervals for each week's forecast are computed and closely inspected.
+
+### SARIMA
+
+The general form for a SARIMA model (or an $\text{ARIMA}(p,d,q)X(P,D,Q)_m$ model) can be mathematically expressed as
+
+$$
+\phi(B)\Phi(B)\nabla^d\nabla_m^Dy_t = \theta(B)\Theta(B)\epsilon_t, \tag{1}
+$$
+
+\setlength{\parindent}{0pt}
+where $y_t$ is the current realization of the time series, $\phi(B)$ and $\Phi(B)$ are the autoregressive characteristic functions expressed in terms of the backshift operator for the non-seasonal and seasonal components, respectively, $\theta(B)$ and $\Theta(B)$ are the moving average characteristic functions for the non-seasonal and seasonal components, respectively, $\nabla^d$ and $\nabla_m^D$ are the differencing components for the non-seasonal and seasonal components, respectively, and $m$ is the period, or the number of observations per year (Cryer & Chan, 2008, pg. 234). Before fitting a SARIMA model, differencing is applied to the data to see if stationarity can be achieved. Both the first-order difference and the second-order difference are considered. Then the *auto.arima()* function from the *forecast* library in R is used to fit a SARIMA model for the price difference. This function picks the best SARIMA model for the data by first determining the values to use for the non-seasonal and seasonal differencing ($d$ and $D$) and then choosing the values for the remaining parameters ($p$, $q$, $P$, and $Q$) that minimize AICc. Next, nine additional SARIMA models are developed by changing the model produced by *auto.arima()* to see if a lower prediction error can be achieved. These models adjust the autoregressive and moving average components, as well as the differencing component to view the effect that the first-order and second-order difference have on the overall prediction results. Forecasts are performed on all 10 SARIMA models, and their RMSEs and MAEs are compared.
+\setlength{\parindent}{20pt}
+
+### Holt-Winters
+
+An additive Holt-Winters model is typically used when seasonal variation is constant. The general form for this type of model can be mathematically expressed as
+
+$$
+y_{t+h} = a_t + hb_t + s_{t-m+1+(h-1)\text{mod}m}, \tag{2}
+$$
+
+\setlength{\parindent}{0pt}
+where $y_{t+h}$ is the forecasted value $h$ time units beyond the current realization, $a_t = \alpha(y_t - s_{t-m}) + (1 - \alpha)(a_{t-1} + b_{t-1})$ is the level, $b_t = \beta(a_t - a_{t-1}) + (1 - \beta)b_{t-1}$ is the trend component, $s_t = \gamma(y_t - a_t) + (1-\gamma)s_{t-m}$ is the seasonal component, and $m$ is the period. $\alpha$, $\beta$, and $\gamma$ are smoothing parameters for the estimated level, trend, and seasonal components, respectively. Seasonal and trend decomposition is applied to the data to separate the time series into trend, seasonal, and remainder components using the *stl()* function from the *stats* library in R. The seasonal component is determined by averaging the price difference across all periods for each time unit. Then the trend component is determined by removing the seasonal values and smoothing what is leftover. Finally, the remainder component constitutes the residuals from the seasonal-plus-trend fit (this can be conceptualized as what it leftover after the trend and seasonal components have been factored out) *(see Appendix C)*. There appears to be a slow upward trend in the difference in weekly high and low prices from around 2017 onward, with a sharp increase at the end of 2019 going into 2020 followed by a sudden downward trend as 2020 comes to an end. Although the weekly price difference appears to exhibit some seasonality, the range of the seasonal component is much smaller than that of trend and the overall data, suggesting seasonal effects are of small magnitude. Given this uncertainty about the presence of trend and seasonality, four exponential smoothing models are fit to the weekly price difference: (1) a simple exponential smoothing model, (2) a Holt's linear trend model (Holt Winters Trend Only), (3) a Holt-Winters model with only an additive seasonal component (Holt-Winters Season Only), and (4) a Holt-Winters model with both trend and additive seasonal components (Full Holt-Winters). This is achieved using the *HoltWinters()* function from the *stats* library in R. This function determines the values for the smoothing parameters $\alpha$, $\beta$, and $\gamma$ by minimizing the squared prediction error.
+\setlength{\parindent}{20pt}
+
+
+# 3. Results
+
+```{r}
+# define training and test set
+train_data <- window(microsoft_ts_range, end = c(2020, 52))
+test_data <- window(microsoft_ts_range, start = c(2021, 1))
+
+# add first observation from test set to training set FOR VISUALIZATION PURPOSES ONLY
+train_data_viz <- window(microsoft_ts_range, end = c(2021, 1))
+
+# number of obs in test sets
+n_testing <- length(test_data)
+```
+
+## 3.1 SARIMA
+
+To begin, the first-order difference is taken. The resulting time series produces a constant mean but non-constant variance, so stationarity is not achieved through the first-order difference. Differencing is applied again to see if stationarity can be improved, but the time series resulting from the second-order difference does not appear to improve upon the constant variance of the first-order difference enough to conclude stationarity. Therefore, further manual differencing is abandoned to avoid losing information as a consequence of over-differencing the data *(see Appendix A)*. Next, the *auto.arima()* function reveals the best SARIMA model to have the following specifications: $p=0, d=1, q=2, P=0, D=0, Q=1$. In other words, it produces an $ARIMA(0,1,2)X(0,0,1)_{52}$ model. The fitted model for this particular combination of specifications can be derived from Equation (1) and expressed as
+
+$$
+(1-B)\hat{y}_t = (1 - \hat{\theta}_1B - \hat{\theta}_2B^2)(1 - \hat{\Theta}B^{52})\epsilon_t, \tag{3}
+$$
+
+\setlength{\parindent}{0pt}
+where $\hat{\theta_1}$, $\hat{\theta_2}$, and $\hat{\Theta}$ are the estimated parameters for $\theta_1$, $\theta_2$, and $\Theta$, respectively.
+
+### Table 1: Parameter Estimates of $\bf{ARIMA(0,1,2)X(0,0,1)_{52}}$
+
+```{r}
+# fit best arima model
+microsoft.arima <- auto.arima(train_data)
+#microsoft.arima
+
+# make table of estimates
+table1 <- cbind(microsoft.arima$coef, # coefficients
+               sqrt(diag(microsoft.arima$var.coef))) # standard errors
+rownames(table1) <- c("$\\theta_1$", "$\\theta_2$", "$\\Theta$")
+colnames(table1) <- c("Estimate", "Standard Error")
+
+# print table
+kable(table1,
+      digits = 3,
+      align = "c")
+```
+
+Table 1 depicts the estimates for $\theta_1$, $\theta_2$, and $\Theta$ in the $ARIMA(0,1,2)X(0,0,1)_{52}$ model along with their corresponding standard errors (SEs). Both $\hat{\theta_1} = -0.498$ and $\hat{\theta_2} = -0.202$ appear to be significant terms, given that their absolute values are around or greater than three times their SEs of 0.059 and 0.068, respectively. The $\hat{\Theta} = -0.124$ term may not be significant with a SE of 0.087, although it is unclear. Given this uncertainty, the term is left in the model. Plugging the estimates for the parameters into Equation (3) and solving for $\hat{y_t}$ yields the model
+
+$$
+\hat{y_t} = \hat{y}_{t-1} + \epsilon_t + 0.4979\epsilon_{t-1} + 0.2024\epsilon_{t-2} + 0.1245\epsilon_{t-52} + 0.0620\epsilon_{t-53} + 0.0252\epsilon_{t-54}. \tag{4}
+$$
+
+After forecasting the first 13 weeks of 2021 using this model, the resulting RMSE and MAE values are 4.811 and 4.191, respectively. After forecasting the same period of time in the future using the other nine manually determined SARIMA models, six of them improve the RMSE and seven of them improve the MAE. Most notably, the $ARIMA(1,1,1)X(1,1,1)_{52}$ produces an RMSE and MAE of 3.644 and 2.708, respectively *(see Appendix B)*. Given that many of these models improve upon the prediction errors of the $ARIMA(0,1,2)X(0,0,1)_{52}$, they are worth further exploration. However, they also raise concerns of potential overfitting, something that *auto.arima()* is empirically known to account for. Thus, for the sake of this analysis, the $ARIMA(0,1,2)X(0,0,1)_{52}$ is selected for comparison with the Holt-Winters method.
+
+### Table 2: Forecasts of $\bf{ARIMA(0,1,2)X(0,0,1)_{52}}$
+
+```{r}
+# compute forecasts
+arima.forecast <- forecast(microsoft.arima, h=n_testing, include.drift = TRUE)
+#accuracy(arima.forecast, test_data)[2,2:3]
+
+# table of forecasts and CIs
+table2 <- as.data.frame(arima.forecast) %>%
+  cbind(as.data.frame(test_data)) %>%
+  select(x, `Point Forecast`, `Lo 95`, `Hi 95`)
+
+rownames(table2) <- 1:13
+colnames(table2) <- c("True Value", "Point Forecast", "95% CI Low", "95% CI High")
+
+kable(table2,
+      row.names = TRUE,
+      digits = 2,
+      align = "c")
+```
+
+Table 2 lists the forecasts of this model along with a 95% confidence interval (CI) and the true high-low price difference for each of the first 13 weeks in 2021. Note that while some of the lower bounds on the CIs are negative, such a value would be impossible because a weekly high price cannot be below a weekly low price. These negatives should be treated as effectively 0. Of the 13 weeks, the true value lies within the bounds of all the forecast CIs but two: Week 4 (true value = 17.44, 95% CI = (3.39, 15.85)) and Week 5 (true value = 18.42, 95% CI = (1.92, 14.76)). However, the true values display variability over time that the point forecasts do not seem to capture. More specifically, the true values range from 5.11 to 18.42 over the course of the 13 weeks, but the point forecasts only range from 7.07 to 9.62.
+\setlength{\parindent}{20pt}
+
+## 3.2 Holt-Winters
+
+Fit on the data, the simple exponential smoothing model produces very similar results to the Holt-Winters Trend Only model, and the Holt-Winters Season Only model produces very similar results to the Full Holt-Winters model.
+
+```{r}
+# fit four holt-winters models for the high data
+micro.exp <- HoltWinters(train_data, beta=FALSE, gamma=FALSE) # Simple Exponential Smoothing
+micro.trend <- HoltWinters(train_data, gamma=FALSE) # Holt Model (Holt Winters, trend only)
+micro.season <- HoltWinters(train_data, beta=FALSE) # forcing trend coefficient to zero
+micro.hw <- HoltWinters(train_data) # Holt Winters (trend & Season)
+
+# compute forecast values high
+micro.for.exp <- forecast(micro.exp, h=n_testing)
+micro.for.trend <- forecast(micro.trend, h=n_testing)
+micro.for.season <- forecast(micro.season, h=n_testing)
+micro.for.hw <- forecast(micro.hw, h=n_testing)
+```
+
+### Table 3: Paramater Estimates and Evaluation Metrics of Holt-Winters Models
+
+```{r}
+tab1 <- rbind(accuracy(micro.for.exp, test_data)[2,2:3],
+             accuracy(micro.for.trend, test_data)[2,2:3],
+             accuracy(micro.for.season, test_data)[2,2:3],
+             accuracy(micro.for.hw, test_data)[2,2:3])
+rownames(tab1) <- c("Simple Exponential Smoothing", "Holt-Winters (Trend Only)", 
+                   "Holt-Winters (Season Only)", "Full Holt-Winters")
+
+tab2 <- rbind(c(micro.for.exp$model$alpha, micro.for.exp$model$beta, micro.for.exp$model$gamma),
+              c(micro.for.trend$model$alpha, micro.for.trend$model$beta, micro.for.trend$model$gamma),
+              c(micro.for.season$model$alpha, micro.for.season$model$beta, micro.for.season$model$gamma),
+                c(micro.for.hw$model$alpha, micro.for.hw$model$beta, micro.for.hw$model$gamma))
+colnames(tab2) = c("$\\hat{\\alpha}$", "$\\hat{\\beta}$", "$\\hat{\\gamma}$")
+rownames(tab2) <- rownames(tab1)
+
+table3 <- cbind(tab2, tab1)
+kable(table3,
+      escape = FALSE,
+      digits = 3)
+```
+
+\setlength{\parindent}{0pt}
+Table 3 depicts the estimated smoothing parameters for each of the four Holt-Winters models along with their corresponding RMSE and MAE. Note that, *by definition,* simple exponential smoothing forces $\beta$ and $\gamma$ to 0, Holt's linear trend forces $\gamma$ to 0, and Holt-Winters with only a seasonal component forces $\beta$ to 0. It is also worth noting that the Full Holt-Winters model produces a non-influential trend component ($\hat{\beta}=0$). As a result, the full and season-only models are very close in form (as evidenced by their closely resembling fitted smoothing parameters $\hat{\alpha}$ and $\hat{\gamma}$), and thus produce remarkably similar forecasts *(see Appendix D)*. Although these two are similar, the Holt-Winters Season Only can best forecast the difference in weekly high and low prices with an RMSE of 3.513 and an MAE of 2.805. Thus, this model is proposed for comparison with the SARIMA approach. The fitted model equation can be extended from Equation (2) by plugging in the estimated coefficients. That is,
+
+$$
+\hat{y}_{t+h} = \hat{a}_t + h\hat{b}_t + \hat{s}_{t-51+(h-1)\text{mod}52}, \tag{5}
+$$
+where $\hat{a}_t = 0.401(\hat{y}_t - \hat{s}_{t-52}) + 0.599(\hat{a}_{t-1} + \hat{b}_{t-1})$, $\hat{b}_t = \hat{b}_{t-1}$, and $\hat{s}_t = 0.381(\hat{y}_t - \hat{a}_t) + 0.619\hat{s}_{t-52}$.
+
+### Table 4: Forecasts of Holt-Winters Season Only Model
+
+```{r}
+# table of forecasts and CIs
+table4 <- as.data.frame(micro.for.season) %>%
+  cbind(as.data.frame(test_data)) %>%
+  select(x, `Point Forecast`, `Lo 95`, `Hi 95`)
+
+rownames(table4) <- rownames(table2)
+colnames(table4) <- colnames(table2)
+
+kable(table4,
+      row.names = TRUE,
+      digits = 2,
+      align = "c")
+```
+
+Table 4 lists the forecasts for the Holt-Winters Season Only model. Again, negative values for the lower bound of the CI are 0, in effect. The results show that there is only one week that produces a true high-low price difference outside the bounds of the CI: Week 4 (true value = 17.44, 95% CI = (1.95, 16.54)). Moreover, similar to the SARIMA case, there is variance in the true weekly values that is not fully represented in the point forecasts. To reiterate, the true values range from 5.11 to 18.42, yet the forecasts for this model range from 8.20 to 12.80. Notably, the range of the forecasts for this model is wider than that of the chosen SARIMA model, indicating that the Holt-Winters approach may better suit the data.
+\setlength{\parindent}{20pt}
+
+## 3.3 Comparative Model Analysis
+
+Recall our best models from either of the two modeling techniques: $ARIMA(0,1,2)X(0,0,1)_{52}$ and Holt-Winters Season Only. As aforementioned, both of these two models are trained on historical data and used to produce forecasts 13 weeks beyond the start of 2021.
+\setlength{\parindent}{0pt}
+
+### Figure 2: Forecasts of Best SARIMA and Holt-Winters Models
+
+```{r, fig.fullwidth=TRUE, fig.height=3.25}
+# plot - best sarima
+p3 <- autoplot(window(train_data_viz, start=c(2020, 1))) + 
+  autolayer(arima.forecast, series="SARIMA") +
+  autolayer(test_data, series="True Price Difference", size=1) +
+  labs(x=NULL, y="Price Difference ($)", color=NULL) +
+  theme_classic()
+
+ggsave("p3.png")
+
+# plot - best holt winters
+p4 <- autoplot(window(train_data_viz, start=c(2020, 1))) + 
+  autolayer(micro.for.season, series="Holt-Winters") +
+  autolayer(test_data, series="True Price Difference", size=1) +
+  labs(x=NULL, y="Price Difference ($)", color=NULL,
+       caption="Top: SARIMA forecasts
+       Bottom: Holt-Winters forecasts") +
+  theme_classic()
+
+ggsave("p4.png")
+
+grid.arrange(p3, p4)
+```
+
+Fig. 2 shows the forecasted weekly high-low price differences for the best SARIMA model and the best Holt-Winters model compared to the true weekly values. Also pictured are 80% (light red) and 95% (dark red) confidence bounds on these forecasts. It is clear from this graphic depiction, as well as from previous discussion of results, that the Holt-Winters model performs better than the SARIMA model. The true price difference is encapsulated more within the confidence bounds of the Holt-Winters forecasts. Additionally, it is clear that the variability over time is better captured by the Holt-Winters model. In other words, dips and rises in the true price difference are better reflected in the Holt-Winters model.
+
+### Table 5: RMSE and MAE of Final Models
+
+```{r}
+# print table of RMSE and MAE values for all models
+final_tab <- rbind(accuracy(arima.forecast, test_data)[2,2:3],
+                   accuracy(micro.for.season, test_data)[2,2:3])
+rownames(final_tab) <- c("$ARIMA(0,1,2)X(0,0,1)_{52}$", "Holt-Winters (Season Only)")
+kable(final_tab,
+      align = "c",
+      digits = 3)
+```
+
+Table 5 reports the RMSE and MAE of the two final models. With an RMSE of 3.513 and an MAE of 2.805, the Holt-Winters Season Only model produces less overall prediction error than the $ARIMA(0,1,2)X(0,0,1)_{52}$ model. These results again confirm the conclusion that the Holt-Winters model performs better in predicting price difference. Overall, it appears that Holt-Winters is a better modeling approach than SARIMA for predicting weekly high-low price differences in Microsoft stock.
+\setlength{\parindent}{20pt}
+
+
+# 4. Discussion
+
+The primary objective of this study was to forecast the weekly high-low price differences of Microsoft stock using two popular time series modeling techniques: Seasonal Integrated Autoregressive Moving Average (SARIMA) and additive Holt-Winters exponential smoothing. The analysis focused on historical data spanning from April 6, 2015, to March 26, 2021, incorporating the effects of the COVID-19 pandemic. The SARIMA model, known for its ability to handle seasonality and trends, underwent rigorous parameter estimation and model selection. Despite the challenges posed by the non-constant variance in the time series, the SARIMA model provided valuable insights into the underlying patterns of the data. Through the application of differencing techniques and the *auto.arima()* function, the best SARIMA model was identified as an $ARIMA(0,1,2)X(0,0,1)_{52}$ model. While this model demonstrated satisfactory forecasting performance, subsequent manual exploration revealed alternative SARIMA models with improved prediction accuracy, albeit raising concerns of potential overfitting. On the other hand, the additive Holt-Winters exponential smoothing models, designed to capture constant seasonal variations, offered an alternative approach to forecasting. Through seasonal and trend decomposition, the Holt-Winters models successfully captured the underlying patterns in the data. Notably, the Holt-Winters Season Only model emerged as the best-performing model, outperforming its SARIMA counterpart in terms of forecast accuracy. Comparing the two modeling techniques, the Holt-Winters approach consistently demonstrated superior forecasting performance, capturing the variability in the weekly high-low price differences more effectively. Despite the uncertainty surrounding the presence of trend and seasonality in the data, the Holt-Winters model exhibited robust predictive capabilities, particularly in capturing the impact of the COVID-19 pandemic on stock prices. While SARIMA remains a valuable tool for time series forecasting, particularly in handling complex seasonal and trend patterns, the Holt-Winters approach offers a compelling alternative, especially in scenarios where seasonal variations are predominant. One of the limitations of this analysis was the lack of addressing overfitting in alternative SARIMA models. Moving forward, further research could explore these other SARIMA models, such as the ones that excelled in terms of prediction accuracy *(see again Appendix B)*. The $ARIMA(1,1,1)X(0,0,1)_{52}$, for instance, could be a better alternative than the SARIMA model chosen in this paper, and perhaps alter the conclusion that Holt-Winters is preferable to SARIMA for this data. In summary, these findings underscore the importance of employing appropriate modeling techniques tailored to the characteristics of the data to maximize predictive performance and provide the most robust forecasts possible.
+
+
+\newpage
+# References
+
+- Basuony, M. A. K., Bouaddi, M., Ali, H., & EmadEldeen, R. (2021). *The effect of COVID-19 pandemic on global stock markets: Return, volatility, and bad state probability dynamics*. Journal of public affairs, e2761. Advance online publication. https://doi.org/10.1002/pa.2761
+- CDC (Centers for Disease Control and Prevention). (2023). *CDC Museum COVID-19 Timeline*. Retrieved from https://www.cdc.gov/museum/timeline/covid19.html
+- Cryer, J. D., Chan, K. S. (2008). *Time Series Analysis with Applications in R* (2nd ed.). New York: Springer. http://dx.doi.org/10.1007/978-0-387-75959-3
+- Hyndman, R.J., & Athanasopoulos, G. (2018). *Forecasting: Principles and Practice* (2nd ed). https://otexts.com/fpp2/arima-r.html
+- Hyndman, R.J., Athanasopoulos, G., Bergmeir, C., Caceres, G., Chhay, L., O'Hara-Wild, M., Petropoulos, F., Razbash, S., Wang, E., Yasmeen, F. (2024). *forecast: Forecasting functions for time series and linear models*. R package version 8.22.0, https://pkg.robjhyndman.com/forecast/.
+- R Core Team (2024). *R: A Language and Environment for Statistical Computing*. R Foundation for Statistical Computing, Vienna, Austria. https://www.R-project.org/.
+
+
+
+\newpage
+# Appendix
+
+### A. Stationarity of Differenced TS
+
+\setlength{\parindent}{0pt}
+```{r, fig.fullwidth=TRUE, fig.height=3.75}
+# first difference
+d <- diff(microsoft_ts_range)
+
+p5 <- ggplot() +
+  geom_line(data = d, aes(x = index(d), y = d)) +
+  labs(x = NULL,
+       y = "First-order Difference") +
+  scale_x_continuous(breaks = 2015:2021) +
+  theme_classic() +
+  theme(
+    plot.caption = element_text(size = 8)
+  )
+
+ggsave("p5.png")
+
+# second difference
+d2 <- diff(d)
+
+p6 <- ggplot() +
+  geom_line(data = d2, aes(x = index(d2), y = d2)) +
+  labs(x = NULL,
+       y = "Second-order Difference",
+       caption = "Top: first-order difference of the high-low price difference
+       Bottom: second-order difference of the high-low price difference") +
+  scale_x_continuous(breaks = 2015:2021) +
+  theme_classic() +
+  theme(
+    plot.caption = element_text(size = 8)
+  )
+
+ggsave("p6.png")
+
+# print both plots
+grid.arrange(p5, p6)
+```
+
+### B. Various SARIMA Models
+
+```{r}
+# fit a bunch of sarima models
+fit1=arima(train_data, order=c(0,1,2), seasonal=list(order=c(0,0,1), period=52))
+fit2=arima(train_data, order=c(1,1,1), seasonal=list(order=c(0,0,1), period=52))
+fit3=arima(train_data, order=c(1,1,2), seasonal=list(order=c(0,0,1), period=52))
+fit4=arima(train_data, order=c(1,2,1), seasonal=list(order=c(0,0,1), period=52))
+fit5=arima(train_data, order=c(1,2,2), seasonal=list(order=c(0,0,1), period=52))
+fit6=arima(train_data, order=c(2,1,1), seasonal=list(order=c(0,0,1), period=52))
+fit7=arima(train_data, order=c(2,1,2), seasonal=list(order=c(0,0,1), period=52))
+fit8=arima(train_data, order=c(2,2,1), seasonal=list(order=c(0,0,1), period=52))
+fit9=arima(train_data, order=c(2,2,2), seasonal=list(order=c(0,0,1), period=52))
+fit10=arima(train_data, order=c(1,1,1), seasonal=list(order=c(1,1,1), period=52))
+
+# forecasts
+fit1.forecast <- forecast(fit1, h=n_testing, include.drift = TRUE)
+fit2.forecast <- forecast(fit2, h=n_testing, include.drift = TRUE)
+fit3.forecast <- forecast(fit3, h=n_testing, include.drift = TRUE)
+fit4.forecast <- forecast(fit4, h=n_testing, include.drift = TRUE)
+fit5.forecast <- forecast(fit5, h=n_testing, include.drift = TRUE)
+fit6.forecast <- forecast(fit6, h=n_testing, include.drift = TRUE)
+fit7.forecast <- forecast(fit7, h=n_testing, include.drift = TRUE)
+fit8.forecast <- forecast(fit8, h=n_testing, include.drift = TRUE)
+fit9.forecast <- forecast(fit9, h=n_testing, include.drift = TRUE)
+fit10.forecast <- forecast(fit10, h=n_testing, include.drift = TRUE)
+
+# table for all SARIMA models
+table <- rbind(accuracy(fit1.forecast, test_data)[2,2:3],
+               accuracy(fit2.forecast, test_data)[2,2:3],
+               accuracy(fit3.forecast, test_data)[2,2:3],
+               accuracy(fit4.forecast, test_data)[2,2:3],
+               accuracy(fit5.forecast, test_data)[2,2:3],
+               accuracy(fit6.forecast, test_data)[2,2:3],
+               accuracy(fit7.forecast, test_data)[2,2:3],
+               accuracy(fit8.forecast, test_data)[2,2:3],
+               accuracy(fit9.forecast, test_data)[2,2:3],
+               accuracy(fit10.forecast, test_data)[2,2:3])
+
+rownames(table) <- c("$ARIMA(0,1,2)X(0,0,1)_{52}$",
+                     "$ARIMA(1,1,1)X(0,0,1)_{52}$",
+                     "$ARIMA(1,1,2)X(0,0,1)_{52}$",
+                     "$ARIMA(1,2,1)X(0,0,1)_{52}$",
+                     "$ARIMA(1,2,2)X(0,0,1)_{52}$",
+                     "$ARIMA(2,1,1)X(0,0,1)_{52}$",
+                     "$ARIMA(2,1,2)X(0,0,1)_{52}$",
+                     "$ARIMA(2,2,1)X(0,0,1)_{52}$",
+                     "$ARIMA(2,2,2)X(0,0,1)_{52}$",
+                     "$ARIMA(1,1,1)X(1,1,1)_{52}$")
+
+kable(table,
+      align = "c",
+      digits = 3)
+```
+
+### C. Decomposition of Time Series
+
+```{r, fig.fullwidth=TRUE, fig.height=3.75}
+autoplot(stl(microsoft_ts_range, s.window = "periodic")) +
+  labs(x=NULL, y = "*Price Difference ($)",
+       caption = "Data: price difference over time
+       Trend: trend component
+       Seasonal: seasonal component
+       Remainder: error component
+       *Price Difference = High Price - Low Price") + 
+  theme_classic() +
+  theme(plot.caption = element_text(size = 8))
+
+ggsave("decomp.png")
+```
+
+### D. Forecasts of Holt-Winters Models
+
+```{r, fig.fullwidth=TRUE, fig.height=3.75}
+# plot HW models high
+autoplot(window(train_data_viz, start=c(2020,1))) + 
+  autolayer(test_data, series="True Price Difference", size=1) +
+  autolayer(micro.for.exp, PI=FALSE, series="Simple Exponential Smoothing") +
+  autolayer(micro.for.trend, PI=FALSE, series="Holt-Winters (Trend Only)") +
+  autolayer(micro.for.season, PI=FALSE, series="Holt-Winters (Season Only)") + 
+  autolayer(micro.for.hw, PI=FALSE, series="Full Holt Winters") +
+  labs(x="Day", y="Price Difference ($)", color = NULL) +
+  theme_classic()
+
+ggsave("forecast.png")
+```
+
+
+
