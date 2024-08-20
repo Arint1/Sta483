@@ -1,0 +1,266 @@
+---
+title: "Lab 10"
+author: "Alex Rintamaa"
+date: "2024-04-04"
+output: html_document
+---
+
+The goal of this LAB is to practice modeling and a model selection using SARIMA() function. We will also practice how to use Periodogram.
+First, you are expected to read Section 13.2,  Pgs.322-327 from your book. Second, you are expected to review the Demo on Periodogram and SARIMA posted on Canvas.
+
+Replicate the same Demo by removing the first 10 observations from your data set
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tseries)
+library(forecast)
+library(ggplot2)
+library(stats)
+library(tidyverse)
+# For arranging of multiple plots
+library(gridExtra)
+# for kable function
+library(knitr)
+```
+
+First let's read in the data and plot it.
+```{r}
+#monthly temperature data for England from 1723 to 1970 (in Celsius) 
+engtemp=scan("tpmon.dat",skip=1)
+
+engtemp_sub = engtemp[-c(1:10)]
+
+temp <- ts(engtemp_sub, start=c(1723,11), frequency=12)
+autoplot(temp) +
+  labs(x="Year", y="Temperature Data for England 1723-1970") +
+  theme_bw()
+```
+
+
+Due to the massive amount of data the TS plot is somewhat difficult to read. Let’s select the first 500 observations to analyze.  
+
+```{r}
+engtemp_sub1=scan("tpmon.dat",skip=1)[11:500] 
+
+temp1 <- ts(engtemp_sub1, start=c(1723,11), frequency=12)
+autoplot(temp1) +
+  labs(x="Year", y="Temperature Data for England") +
+  theme_bw()
+
+```
+
+Does this TS appear to be stationary? Let's draw ACF.
+
+```{r}
+ggAcf(engtemp_sub1)
+```
+
+We observe from the ACF plot that this TS is not stationary. Next, we will draw the periodogram and ﬁnd the signiﬁcant frequency. 
+
+```{r}
+spec.pgram(engtemp_sub1,log="no",taper=0) 
+abline(v=1/12)
+```
+
+From the periodogram above we note a huge spike at frequency $\omega=1/12$.
+Using the frequency above we will fit the following model $Y_t = \beta_0+\beta_1 t + \beta_2 cos(2\pi\omega t) +\beta_3 sin(2\pi\omega t) + X_t$
+
+I added the independent variable $t$ to see whether there is a linear trend in temperature. Fit lm() model and check.
+
+```{r}
+w=1/12 
+t=1:length(engtemp_sub1) 
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t) 
+fit=lm(engtemp_sub1~t+cs+si) 
+summary(fit)
+resi=fit$residuals
+temp_2 <- ts(resi, start=c(1723,11), frequency=12)
+autoplot(temp_2)
+ggAcf(temp_2, lag=50)
+```
+
+$\beta_1 = 0.3$ is quite small and signiﬁcant. The linear trend in temperature is significant. In addition, all other coefficients are signiﬁcant. We observe that the strong seasonal trend is removed and the time series plot of the residuals is fairly stationary. However, the ACF plot displays some hidden seasonal trend. Thus the residials are not yet stationary. Let's run the periodogram again and check if there is another pick.
+
+```{r}
+spec.pgram(resi,log="no",taper=0) 
+abline(v=1/6) 
+```
+
+
+Based on these results, we suspect that frequency of $\omega=1/6$ can be used. We will also add additional terms to the model $cs1=cos(2\pi\frac{1}{6}t)$ and $si1=sin(2\pi\frac{1}{6}t)$ and refit the model again with these additinal terms.
+
+```{r}
+w1=1/6 
+cs1=cos(2*pi*w1*t) 
+si1=sin(2*pi*w1*t) 
+fit1=lm(engtemp_sub1~t+cs+si+cs1+si1) 
+summary(fit1) 
+```
+
+From the results above, we observe that all terms are significant, so we will not drop anything from the model.
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 9.53 -0.001 t + 0.85 cos(2\pi\omega t/12) -6.53 sin(2\pi\omega t/12) - 0.5cos(2\pi t/6)  - 0.37sin(2\pi t/6) + X_t$
+
+However, we can see very clear exponential decline in the ACF plot. The ACF plot suggests that the residuals are an AR model. (Now, we wonder if  this process could be an ARMA model). In summary, this TS is non-stationary and contains two strong seasonal trends and a weak linear trend. 
+
+Now, we will proceed by finding the best time series model for $X_t$.
+
+```{r}
+sarima=function(data,p,d,q,P=0,D=0,Q=0,S=-1){ 
+  n=length(data)
+  constant=1:n
+  xmean=matrix(1,n,1)
+  if (d>0)  
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S),xreg=constant,include.mean=F)
+  if (d<.00001)
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S),xreg=xmean,include.mean=F)
+  if (d+D>1)
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S))
+  if (S < 0) goof=20 else goof=3*S
+  tsdiag(fitit,gof.lag=goof)
+  k=length(fitit$coef)
+  BIC=log(fitit$sigma2)+(k*log(n)/n)
+  AICc=log(fitit$sigma2)+((n+k)/(n-k-2))
+  AIC=log(fitit$sigma2)+((n+2*k)/n)
+  list(fit=fitit, AIC=AIC, AICc=AICc, BIC=BIC)
+}
+
+fit1=sarima(resi,1,0,1)
+fit1
+```
+
+Notice that we have estimates for $\phi_1$, $\theta_1$ and the mean along with standard errors. If the absolute value of estimates of AR and MA parameters is greater than 2 times standards error(s.e), then the parameter is signiﬁcant. In this case, the absolute value of ar1, |0.4051| = 0.4051, is greater than 2∗0.1541 so $\phi_1$ is signiﬁcant. By the same argument, $\theta_1$ is also signiﬁcant. We also have the estimate of the variance of the white noise $\sigma^2$ ( we use it when we write the final model) and the AIC which allows us to compare different models. Let's increase orders and ﬁnd the qualiﬁed models. We will ignore some parts of this output (the last two plots) for now, and will come back to them later.
+
+```{r}
+fit1=sarima(resi,1,0,1)
+fit1
+fit2=sarima(resi,2,0,1)
+fit2
+fit3=sarima(resi,1,0,2)
+fit3
+fit4=sarima(resi,2,0,2)
+fit4
+fit5=sarima(resi,3,0,2)
+fit5
+fit6=sarima(resi,3,0,1)
+fit6
+fit7=sarima(resi,1,0,0)
+fit7
+fit8=sarima(resi,2,0,0)
+fit8
+fit9=sarima(resi,3,0,0)
+fit9
+```
+
+We can also loop through the possible models ARMA(p,q) up to lag 3. That is, we check an ARMA(1,0), ARMA(2,0), ... , ARMA(1,1), ARMA(1,2), ARMA(3,1) and so on....
+
+```{r}
+#This little function extracts the
+#AIC, AICc and BIC values from an Arima() fit
+getAIC <- function(fit) {
+  c(fit$AIC, fit$AICc, fit$BIC)
+}
+```
+
+We will summarize the AIC-related results in a table and siplay the table
+
+```{r}
+tab <- rbind(getAIC(fit1), getAIC(fit2), getAIC(fit3),
+             getAIC(fit4), getAIC(fit5), getAIC(fit6),
+            getAIC(fit7), getAIC(fit8), getAIC(fit9))
+colnames(tab) <- c("AIC", "AICc", "BIC")
+rownames(tab) <- c("ARMA(1,1)","ARMA(2,1)","ARMA(1,2)","ARMA(2,2)",
+ "ARMA(3,2)","ARMA(3,1)","AR(1)", "AR(2)", "AR(3)")
+kable(tab)  #displays the table
+```
+
+From the table, using a combination of the AIC, AICc, and BIC values reported (remember when the values are within 2 of one another, they are essentially the same). We see that all of these models are the same. We want to choose the simplest model.
+
+For now, let us consider the $AR(1)$ model for simplicity.
+
+```{r}
+fit7=sarima(resi,1,0,0)
+ggAcf(fit7$fit$resid)
+```
+
+we can see a lot of lags are significant, however it starts at lag 4, we will try a different model.
+
+Interestingly, the autocovariance function is significant at lag 4. Thus, our residuals are not white noise. Let's try another model, say the $ARMA(1,2)$
+
+```{r}
+fit9=sarima(resi,1,0,1)
+ggAcf(fit9$fit$residuals)
+```
+
+```{r}
+fit10=sarima(resi,1,0,2)
+ggAcf(fit10$fit$residuals)
+```
+
+
+
+It seems that later lags are significant, but that is likely spurious rather that something we would be worried about.
+
+To see our whole model in one summary, we can use arima
+
+```{r}
+finalfit <- Arima(engtemp_sub1, order=c(1, 0, 1), xreg=cbind(t, cs, si, cs1, si1))
+finalfit
+```
+
+which gives rise to the equation
+
+\[ X_t = 9.5544 + 0.7460X_{t-1} - 0.5033\epsilon_{t-1} -1\times10^{-3} t + 0.8517\cos(2\pi\frac{1}{12}t) -6.5382\sin(2\pi\frac{1}{12}t) - 0.4983\sin(2\pi\frac{1}{6}t) - 0.3679\sin(2\pi\frac{1}{6}t) \]
+
+Another way to handle the trend is by differencing. Since this term is relatively small, we can difference the time series before fitting the model. You can think of the differencing as first computing $\triangledown Y_{t} = Y_{t} - Y_{t-1}$ and then fitting the same ARIMA model to $\triangledown Y_{t}$, except without the trend term since we are already handling that with the differencing. 
+
+```{r}
+finalfit2 <- Arima(engtemp_sub1, order=c(1, 1, 1), xreg=cbind(cs, si, cs1, si1))
+finalfit2
+
+ggAcf(finalfit2$residuals)
+```
+
+# Seasonality check
+
+```{r}
+fit3 <- Arima(engtemp_sub1, order = c(1,0,1), seasonal = c(2,1,0))
+checkresiduals(fit3)
+```
+
+```{r}
+engtemp_sub1 %>%
+  Arima(order=c(1,0,1), seasonal=c(2,1,0), lambda = 0) %>%
+  forecast(h=12) %>%
+  autoplot() +
+    ylab("tpmon") + xlab("Year")
+```
+
+After checking through the seasonal changes, we can see that (P,D,Q) = (2,1,0) is the best model for seasonality.
+
+Here we will call the auto.arima() function to test out model selection
+
+```{r}
+auto.arima(temp1)
+```
+
+From the auto.arima() call we can see that are sarima model with (p,d,q,) being equal to (1,0,1) and (P,D,Q) being equal to (2,1,0) is the best best model on a lag of 12. Lookigna the predictors we can see that for ma1, 2(0.129) < |-0.4888| showing that ma1 is significant. For ar1 it can be seen that 2(0.1008) < |0.72|, showing ar1 is signficant. For sar1 we can see that 2(0.0441) < |-0.6702| showing sar1 is significant. Lastly for the sar2 it can be seen that 2(0.0444) < |-0.3156| showing sar2 is significant. This all shows that the model I choose is the best model.
+
+```{r}
+train_data <- window(temp1, end = c(1763, 10))
+test_data <- window(temp1, start =c(1763, 11), end =c(1764, 8))
+
+final_fit <- Arima(train_data, order = c(1,0,1), seasonal = c(2,1,0))
+final_fit_forecast <- forecast(final_fit, h=12)
+
+accuracy(final_fit_forecast, test_data)
+```
+
+After looking at the final fit of our best model, and using it to train the data, we can see that there is an RMSE of 1.18. In comparing this to other models seen in class it is slightly higher than the other model I have seen. With that being said the model I used was trained on a different range of data than what the other model used which may play a role in the difference. 
+
+
+Reflect on this LAB. Which part was the most challenging? What did you learn from this LAB? Are you ready to model a real data set with a non-stationary TS? Elaborate using a min 5 full sentences
+
+The most challenging part of this lab was finding which model was best for the final part, as unlike the demo this LAB did not have the same model as the other. When the first 10 were removed cs1 became a significant factor, thus making our initial fit a good one to use and when we moved to ARMA fits, the coding and interpretation was different from the demo. I feel as though I am ready to model a real data set with a non-stationary TS. Going through this lab, I learned a lot more about how the different models can all look the same for AIC, yet can have completely different ACF's. The other thing I felt I learned a lot more about was how the different factors of cs, si, cs1, and si1 play a role in the model that is to be used, as originally I forgot to add cs1 into my final model formula and when I went back and added it back in all of my coefficients were different.
