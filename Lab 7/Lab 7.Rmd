@@ -1,0 +1,89 @@
+---
+title: "Lab 7"
+author: "Alex Rintamaa"
+date: "2024-03-14"
+output: html_document
+---
+
+## 1. Fit an ARMA model for the US “production” variable. 
+
+
+This field can be retrieved by running the following R code: production <- uschange[,3]
+
+```{r, message=FALSE, warning=FALSE}
+library(forecast)
+library(fpp2)
+library(tidyverse)
+library(lubridate)
+
+# look at the data
+head(uschange)
+
+# do some data handling
+uschangeTall <- as.data.frame(uschange) %>%
+  mutate(Time = time(uschange)) %>%
+  gather("Series", "Value", Consumption:Production)
+```
+
+
+```{r}
+# Extract the income series
+production <- uschange[,3]
+
+# Plot
+autoplot(production) + labs(y="Production")
+```
+
+
+
+```{r}
+## ACF to check what time of model
+ggAcf(production)
+```
+
+Looking at the ACF plot above, we see a change at Lag equals 3 this would lead us towards modeling the ARMA similar to MA(q).
+
+
+```{r}
+MA3 <- Arima(production, order=c(0,0,3), include.mean = F)
+
+MA3
+```
+
+## 2. Discuss your observations and findings using minimum 5 full sentences.
+
+```{r}
+ggAcf(MA3$residuals)
+```
+
+Looking at the ACF plot above we see that the residuals have autocovaraince at lag 5, 8, and 12, however the autocovariance doesn't go much higher than the lines, and looks very similar to a white noise. We will explore the fitted line for further observation.
+
+```{r}
+autoplot(production) +
+  autolayer(fitted(MA3))
+```
+
+For the plot above, we can see the fitted model represents the time series decently well, with some underfitting around both the mean and variance. The underfitting is more noticeable when the variance is abnormal.
+
+We will also predict with this model.
+
+```{r, message = FALSE, warning = FALSE}
+autoplot(production) +
+  autolayer(fitted(MA3)) +
+  autolayer(forecast(MA3, h=10)) +
+  xlim(c(2008, 2019))
+```
+
+We can see that the prediction for the fitted model seems to predict the Time Series fairly well, the prediction being horizontal seems unlikely however, the trend around zero seems to modlel very well.
+
+
+## 3 Try to link your findings to the theory presented in the lectures/book.
+
+Based our notes this prediction converging to a mean of zero would make sense. We know for any lag q there is not correlation past the value of q. In this situation q is equal to 3 so past lag 3 there should be no correlation past three. Thus we say that past lag 3, the autocorrelation function is zero. This explains the convergence above. Also when looking at the formula in the model we can see that because the model follows no autoregressive characteristics only the $\epsilon_{t}$ would play a role in the output of the plots, and this would account for the slight underfitting seen in the autoplot/fitted plot above.
+
+## 4 
+Reflect on this LAB using a minimum of 5 full sentences. Think about the following questions: How is your understanding of the ARMA models enhanced by this LAB? Is this LAB aligned properly with the R demo ? What were the challenges associated with fitting ARMA model to a dataset? What are the possible errors that one can make by performing this exercise? What are the consequences of an incorrect fit?
+
+My understanding of the ARMA model has enhanced a lot by this LAB, I now understand much better how to code the difference of if the plot would be MA or if the plot would be AR, and how the ARMA allows for a change of variables to fit those. I also feel I have a better understanding of how to read ACF plots. This LAB is aligned very closely to the R demo. There was not really a challenge with fitting the model to the dataset, as long as you payed attention to the demo. The only possible error to be made would be understanding what each plot is saying. The consequences of an incorret fit would be that the model would not be closely related to the time series and the prediction of the data would be very wrong.
+
+
