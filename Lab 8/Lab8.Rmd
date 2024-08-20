@@ -1,0 +1,102 @@
+---
+title: "Lab8"
+author: "Alex Rintamaa"
+date: "2024-03-22"
+output: html_document
+---
+
+This LAB should be completed in RMarkdown. Please submit both RDM/HTML(PDF) files to
+Canvas for grading. Late submissions (w/in 24 hrs) will receive a 50% penalty.
+The goal of this LAB is to practice application of the Ljung-Box test. In order to proceed, please
+go over the R demo (RDM/HTM files) named “Ljung-BoxTest” in the LAB folder on Canvas.
+For modeling “Color” data set we determined that AR(1) was the best model. In this LAB you
+are expected to perform the following tasks:
+
+1. Remove the first 5 observations from the “Color” data set and rerun the same R functions
+that were provided in the demo. What do you observe? A min of 5 full sentences are
+expected for full credit.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+#load the libraries
+library(tseries)
+library(TSA)
+library(forecast)
+library(ggplot2)
+library(tidyverse) 
+library(gridExtra) # For arranging of multiple plots
+library(knitr) # for kable function
+
+#get the data
+data(color)
+
+
+color_subset <- color[-c(1:5)]
+#str(color)
+co <- ts(color_subset, start=1)
+co.plot <- autoplot(co) + 
+  labs(y="Color Property", x="Batch") + 
+  ggtitle("Color Property from a Chemical Process") + 
+  theme_minimal()
+co.plot
+```
+
+We have been told that the best model to fit is the AR(1) model.
+
+```{r}
+m1.color <- Arima(co, order=c(1, 0, 0))
+ggAcf(residuals(m1.color))
+```
+
+Looking at the ACF plot for the AR(1) mdoel we can see that only at lag=8 is there a slight negative correlation. However, when you look at all other Lags the correlation is great, therefore we could say the AR(1) model is the best model for this data.
+
+
+```{r}
+Box.test(residuals(m1.color), lag=6, type="Ljung-Box", fitdf=1)
+# fitdf denotes the number of coefficints in the model
+# for ploting all plots as a panel plot
+tsdiag(m1.color, gof.lag = 15, omit.initial=F)
+```
+
+Looking at the p values for the Ljung_Box statistic, it can be seen that the pvalue is fairly high for the first 7 lags, and then it drops down at lag 8 and stays lower for a bit, however it always stays above the dashed line. When looking at the Box-Ljung test, we are given a total p-value of 0.9712, which suggests that we were correct in using an AR(1) model. We have insufficient evidence to show that the error terms are correlated. Thus with all this information we can say that we are correct in using an AR(1) model. The correlations in the population from which the *color* sample is taken are 0, so any observed correlations in the data result from the randomness of the sampling process. 
+
+
+2. Go back to the original “Color” data set and remove the last 5 observations and rerun the
+same R functions that were provided in the demo. A min of 5 full sentences are expected
+for full credit.
+
+```{r}
+color_subset_end <- color[-c(31:35)]
+#str(color)
+co1 <- ts(color_subset_end, start=1)
+co1.plot <- autoplot(co1) + 
+  labs(y="Color Property", x="Batch") + 
+  ggtitle("Color Property from a Chemical Process") + 
+  theme_minimal()
+co1.plot
+```
+
+
+```{r}
+m1.color1 <- Arima(co1, order=c(1, 0, 0))
+ggAcf(residuals(m1.color1))
+```
+
+```{r}
+Box.test(residuals(m1.color1), lag=6, type="Ljung-Box", fitdf=1)
+# fitdf denotes the number of coefficints in the model
+# for ploting all plots as a panel plot
+tsdiag(m1.color1, gof.lag = 15, omit.initial=F)
+```
+Looking at the p values for the Ljung_Box statistic, it can be seen that the pvalue is fairly high for all the lags throughout the this TS, always staying above the dashed line. When looking at the Box-Ljung test, we are given a total p-value of 0.9703, which suggests that we were correct in using an AR(1) model. We have insufficient evidence to show that the error terms are correlated. Thus with all this information we can say that we are correct in using an AR(1) model. The correlations in the population from which the *color* sample is taken are 0, so any observed correlations in the data result from the randomness of the sampling process. 
+
+
+Reflection - Think about the following questions: How is your understanding of the Ljung-Box statistcs enhanced by this LAB? Is this LAB aligned properly with the R demo ? What were the challenges associated with fitting Ljung-Box statistic to a dataset? What are the possible errors that one can make by performing this exercise?
+
+My understanding of the Ljung-Box statistic has increased a lot through this lab, I feel as though I have a better understand of what the lag values are being presented as within the p-value observation of the test, and how they can change with the data. This LAB is alighend properly with the demo as they are almost the same. The only challenge was figuring out how to remove data from a Time Series. The possible errors I could see would be miss interpreting the ACF plot as a result of one slight showing of correlation.
