@@ -1,0 +1,503 @@
+---
+title: "Exam 1"
+author: "Alex Rintamaa"
+date: '2024-03-05'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(knitr)
+library(stats)
+library(lubridate)
+library(readxl)
+library(TSA)
+```
+
+
+
+```{r}
+Eventdf = read_csv("EventCostBDD.csv", skip = 1)
+
+head(Eventdf)
+
+```
+
+1) (5pts) Using monthly data from EventCostBDD.csv file, analyze seasonality by disaster type. Create at
+least four plots (learned in class) by disaster group.
+
+```{r}
+disas <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`))
+
+ggplot() +
+  geom_line(aes(x = Date, y = W_Mo, color = `Disaster Group`), data = disas) +
+  labs(x = "Time", y = "Month Number", title = "Month Number for Different Disasters") +
+  theme_classic()
+```
+
+```{r}
+disas1 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "SevStorm/Flood")
+
+ggplot(aes(x = Date, y = W_Mo), data = disas1) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Numbers for SevStorm/Flood") +
+  theme_classic()
+```
+
+```{r}
+ggplot() +
+  geom_line(aes(x = Date, y = W_Mo, color = `Disaster Group`, group = SeasNum), data = disas) +
+  labs(x = "Time", y = "Month Number", title = "Month Number for Different Disasters Grouped by SeasNum and Disaster Group") +
+  theme_classic()
+```
+
+```{r}
+disas2 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "Winter/Freeze")
+
+ggplot(aes(x = Date, y = W_Mo), data = disas2) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Number for Winter/Freeze") +
+  theme_classic()
+```
+
+```{r}
+disas <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`))
+
+ggplot() +
+  geom_line(aes(x = Date, y = SeasNum, color = `Disaster Group`), data = disas) +
+  labs(x = "Time", y = "Season Number", title = "Month Number for Different Disasters by Season Number") +
+  theme_classic()
+```
+
+
+
+```{r}
+disas1 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "SevStorm/Flood")
+
+ggplot(aes(x = Date, y = SeasNum), data = disas1) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Number SevStorm/Flood by Season Number") +
+  theme_classic()
+```
+
+2) (5pts) Using seasonal data from EventCostBDD.csv, analyze seasonality by disaster type. Create at
+least four plots (learned in class) by disaster group.
+
+```{r}
+disas1 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "Winter/Freeze")
+
+ggplot(aes(x = Date, y = SeasNum), data = disas1) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Number Winter/Freeze by Season Number") +
+  theme_classic()
+```
+
+
+```{r}
+disas1 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "Tropical Cyclone")
+
+ggplot(aes(x = Date, y = SeasNum), data = disas1) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Number Tropical Cyclone by Season Number") +
+  theme_classic()
+```
+
+
+```{r}
+disas1 <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Disaster, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, W_Mo, SeasNum) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  filter(`Disaster Group` == "WF/Drought")
+
+ggplot(aes(x = Date, y = SeasNum), data = disas1) +
+  geom_line() +
+  geom_smooth(se = FALSE, span = 0.2, color = "red") +
+  geom_smooth(se = FALSE, span = 1, color = "blue") +
+  geom_smooth(se = FALSE, span = 0.6, color = "green") +
+  labs(x = "Time", y = "Month Number", title = "Month Number WF/Drought by Season Number") +
+  theme_classic()
+```
+
+
+3) (6pts) Create the TS plot of the number of annual events by disaster group. Show all 4 TS lines on the
+same plot, provide a legend and label the plot. Can we say that the number of events increased over
+time, supporting a debate about climate change?
+
+```{r}
+
+disas_WF <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Ye) %>%
+  filter(`Disaster Group` == "WF/Drought") %>%
+  group_by(Ye) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  summarise(Ye, Date = mdy(`Begin Date`),
+            number = n()) %>%
+  drop_na()
+
+
+disas_Winter <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Ye) %>%
+  filter(`Disaster Group` == "Winter/Freeze") %>%
+  group_by(Ye) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  summarise(Ye, Date = mdy(`Begin Date`),
+            number = n()) %>%
+  drop_na()
+
+disas_Tropical <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Ye) %>%
+  filter(`Disaster Group` == "Tropical Cyclone") %>%
+  group_by(Ye) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  summarise(Ye, Date = mdy(`Begin Date`),
+            number = n()) %>%
+  drop_na()
+
+disas_Flood <- Eventdf %>%
+  select(`Begin Date`, `Disaster Group`, Ye) %>%
+  filter(`Disaster Group` == "SevStorm/Flood") %>%
+  group_by(Ye) %>%
+  mutate(Date = mdy(`Begin Date`)) %>%
+  summarise(Ye, Date = mdy(`Begin Date`),
+            number = n()) %>%
+  drop_na()
+
+colors <- c("WF/Drought" = "orange", "Winter/Freeze" = "slategray2", "Tropical Cyclone" = "lightseagreen", "SevStorm/Flood" = "blue")
+
+ggplot() +
+  geom_line(aes(x=Date, y=number, color = "WF/Drought"), size = 1, data=disas_WF) +
+  geom_line(aes(x=Date, y=number, color = "Winter/Freeze"), size = 1, data=disas_Winter) +
+  geom_line(aes(x=Date, y=number, color = "Tropical Cyclone"), size = 1, data=disas_Tropical) +
+  geom_line(aes(x=Date, y=number, color = "SevStorm/Flood"), size = 1, data = disas_Flood) +
+  labs(x="Time", y = "Number of Disasters Per Annum", title = "The Number of Disasters Per Annum By Disaster Group", color = "Legend") +
+  theme_bw() +
+  scale_color_manual(values = colors)
+
+```
+
+There does appear to be slight changes in climate especially with an increase in flooding and severe storms. There has also been a slight increase in Tropical Cyclones over the past few years, However, Winter/Freeze and Drought have stayed the same.
+
+4) (6pts) Write a compelling story about your findings. Pretend that you have to publish this story in
+Miami’s Newsletter. Make sure your story is understood by a non-statistician. Write a minimum of 10
+sentences for a full credit
+
+When looking at climate change, natural disasters is a place that people want to see information. Looking at the plot titled The number of disasters Per Annum By Disaster Group, there are a couple of trends that can be seen. First off it can be seen that the number of disasters such as tropical cyclones and Severe Storms/Flooding has increased tremendously over the past few years, which is very different compared to what their numbers were back in the 1980s and 1990s. When looking at the plot labeled Month Numbers for Different Disasters it can be seen that there is seasonality amongst a couple of the disaster groups. For specifically WF/Drought, Winter/Freeze, and Tropical Cyclone's it can be seen that for these plots, they all stay within one season or just a couple of months. For WF/Drought, it can be seen that this normally happens between June and August. For Winter/Freeze this normally happens between January and March. For Tropical Cyclones, these can happen anywhere between July and November. All of these shows the seasonality, and paired with the plot titled the number of disaster Per Annum by Disaster Group, we could come to the conclusion that there is some example of climate change as a result of disaster types and seasonality, however, seasonality plays a very little affect, as the Disaster group that went through the biggest change, is the only disaster type that did not show seasonality. That disaster group is severe storms, which was shown to be a year round occurrence.
+
+5) (6pts) Build 4 seasonal means models without an intercept for monthly cost data by disaster group.
+Write down the equation of these models including all assumptions. Provide the interpretation of the
+coefficients and discuss the model fit. A min of 5 full sentences is required.
+
+$ \mu_t = \beta_0 +\beta_1 \text{Month Febraury} + \beta_2 \text{MonthMarch} + ... + \beta_{11} \text{MonthDecember}$
+
+1.
+```{r}
+season_wf <- Eventdf %>%
+  dplyr::select(Mb, `Disaster Group`, `Total CPI-Adjusted Cost (Millions of Dollars)`) %>%
+  filter(`Disaster Group` == "WF/Drought") %>%
+  drop_na()
+
+season_wf
+
+season_wf.ts <- ts(season_wf$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 6), frequency = 12)
+
+month <- season(season_wf.ts)
+seasonal_means <- lm(season_wf.ts ~month)
+summary(seasonal_means)
+
+# Get fitted values
+fitted_model <- data.frame(date=time(season_wf.ts), fit=fitted(seasonal_means))
+
+autoplot(season_wf.ts) + 
+  labs(y="Cost in Millions") +
+  geom_segment(aes(x=date-0.05, xend=date+0.05, y=fit, yend=fit), size=2, color="red", data=fitted_model)
+```
+
+
+
+2.
+
+$\mu_t = \beta_0 +\beta_1 \text{MonthFebraury} + \beta_2 \text{MonthMarch} + ... + \beta_{11} \text{MonthDecember}$
+
+```{r}
+season_Winter <- Eventdf %>%
+  select(Mb, `Disaster Group`, `Total CPI-Adjusted Cost (Millions of Dollars)`) %>%
+  filter(`Disaster Group` == "Winter/Freeze") %>%
+  drop_na()
+
+season_winter.ts <- ts(season_Winter$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1981, 1), frequency = 12)
+
+month <- season(season_winter.ts)
+seasonal_means <- lm(season_winter.ts ~month)
+summary(seasonal_means)
+
+# Get fitted values
+fitted_model <- data.frame(date=time(season_winter.ts), fit=fitted(seasonal_means))
+
+autoplot(season_winter.ts) + 
+  labs(y="Cost in Millions") +
+  geom_segment(aes(x=date-0.05, xend=date+0.05, y=fit, yend=fit), size=2, color="red", data=fitted_model)
+```
+
+3. 
+
+$\mu_t = \beta_0 +\beta_1 \text{Month Febraury} + \beta_2 \text{MonthMarch} + ... + \beta_{11} \text{MonthDecember}$
+
+```{r}
+season_tropic <- Eventdf %>%
+  select(Mb, `Disaster Group`, `Total CPI-Adjusted Cost (Millions of Dollars)`) %>%
+  filter(`Disaster Group` == "Tropical Cyclone") %>%
+  drop_na()
+
+season_tropic.ts <- ts(season_tropic$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 8), frequency = 12)
+
+month <- season(season_tropic.ts)
+seasonal_means <- lm(season_tropic.ts ~month)
+summary(seasonal_means)
+
+# Get fitted values
+fitted_model <- data.frame(date=time(season_tropic.ts), fit=fitted(seasonal_means))
+
+autoplot(season_tropic.ts) + 
+  labs(y="Cost in Millions") +
+  geom_segment(aes(x=date-0.05, xend=date+0.05, y=fit, yend=fit), size=2, color="red", data=fitted_model)
+```
+
+4.
+
+$\mu_t = \beta_0 +\beta_1 \text{Month Febraury} + \beta_2 \text{MonthMarch} + ... + \beta_{11} \text{MonthDecember}$
+
+```{r}
+season_flood <- Eventdf %>%
+  select(Mb, `Disaster Group`, `Total CPI-Adjusted Cost (Millions of Dollars)`) %>%
+  filter(`Disaster Group` == "SevStorm/Flood") %>%
+  drop_na()
+
+season_flood.ts <- ts(season_flood$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 4), frequency = 12)
+
+month <- season(season_flood.ts)
+seasonal_means <- lm(season_flood.ts ~month)
+summary(seasonal_means)
+
+# Get fitted values
+fitted_model <- data.frame(date=time(season_flood.ts), fit=fitted(seasonal_means))
+
+autoplot(season_flood.ts) + 
+  labs(y="Cost in Millions") +
+  geom_segment(aes(x=date-0.05, xend=date+0.05, y=fit, yend=fit), size=2, color="red", data=fitted_model)
+```
+
+For the plots above, there are 4 different season means models, which have been split up by group type. The first model, represents the TS with only WF/Drought as the disaster type, looking at the visualization of this TS, it can be seen that this model does not predict the data very well. A lot of the points for this plot are not close to the lines shown below. For the 2nd model it depicts the data when Winter/Freeze is the disaster type shown. This plot does a better job of representing the data, however there are three boxes which are not close to any of the trend lines. For the the third plot, it depicts the model where Tropical Cyclones is the disaster type. This model again depicts the data very well except for where the trend line gets very high. The last model is the model where SevStorm/Flood is the disaster type. This model is predicted the best by the lm model. This makes sense as this data type does not have a seasonal relationship quite like the others and this model is very good.
+
+6) (6pts) Fit a sinusoidal function through the data by applying sine and cosine trends. Discuss your
+findings. State your observations. A min of 5 full sentences is required
+
+$ \mu_t = \beta_0 +\beta_1  \cos(2 \pi f t) + \beta_2 \sin(2 \pi f t) $
+
+```{r}
+season_cos <- Eventdf %>%
+  select(Mb, `Disaster Group`, `Total CPI-Adjusted Cost (Millions of Dollars)`) %>%
+  drop_na()
+
+season_cos.ts <- ts(season_cos$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 4), frequency = 12)
+
+t <- time(season_cos.ts)
+# Compute the predictors
+X1 <- cos(2*pi*t) 
+X2 <- sin(2*pi*t) 
+
+# Fit the model
+cosine_model <- lm(season_cos.ts ~ X1 + X2)
+summary(cosine_model)
+
+a <- seq(1980, 2012, by=1/12)[-1]
+beta0 <- cosine_model$coefficients[1]
+beta1 <- cosine_model$coefficients[2]
+beta2 <- cosine_model$coefficients[3]
+fitted_cosine <- beta0 + beta1*cos(2*pi*a) + beta2*sin(2*pi*a) 
+
+cosine_fit <- data.frame(x=a, y=fitted_cosine)
+
+autoplot(season_cos.ts) + 
+  labs(y="Total CPI Adjusted Cost (in Millions)") +
+  geom_line(aes(x=x, y=y), color="red", data=cosine_fit)
+```
+
+The sinusoidal model depicted on the graph above, does an okay job at representing the data. This TS data includes all of the disaster types and is not split for this data. The Sinuosoidal model looks very good for the data, where the disasters are more, normal, however, if a year has a high value for the total cost, this model becomes a very poor representation of the data. looking at specifically the year 2003 the disaster relief cost is around $150,000 however, the trend line fit by the sinusoidal model is barely above 0. This model struggles compared to the seasonal means models above as a result of it being bounded by axis.
+
+
+
+7) (6pts) Select one ACI Region of your choice in ExposureS_PopHo.xlsx and perform EDA for
+population and housing units. Write a min 5 sentences with your observations.
+
+```{r}
+PopHo <- read_excel("ExposureS_PopHo.xlsx")
+PopHo
+
+GPL_data <- PopHo %>%
+  filter(`ACI Region` == "GPL") %>%
+  select(`W_Yr-S`, Popn, HUnits) %>%
+  mutate(UnitsPerPerson = HUnits/Popn) %>%
+  drop_na()
+
+GPL_ts <- ts(GPL_data$UnitsPerPerson, start = c(1961, 1), frequency = 4)
+
+
+autoplot(GPL_ts) + labs(y = "Housing Units Per Person")
+```
+
+```{r}
+ggAcf(GPL_ts)
+```
+
+```{r}
+ggPacf(GPL_ts)
+```
+
+```{r}
+ggseasonplot(GPL_ts)
+```
+
+```{r}
+qqnorm(GPL_ts)
+qqline(GPL_ts, col = "red")
+```
+```{r}
+autoplot(stl(GPL_ts, s.window = "periodic"))
+```
+
+Starting with the TS Plot above, there a couple of trends from this data. The first appeared trend is that this TS does not have a constant mean, this can be seen as there is a drastic increase in mean as the time increase. This would result in this TS not being stationary. In looking at the ggAcf and the ggPacf we can see that there are no trends of either white noise or a random walk. Looking at specifically the ggPacf, we see a graph that looks to be more like a moving average plot. When looking at the ggseasonplot we can definite trends of seasonality, especialy as that data gains more time. In looking at the split plot above, we can see that the remainder appears relatively normal until the data gets to be around 2020, when there is a major increase. Checking assumptions with the normal QQ plot, we can see that the plot fails the fat pencil test and the data is not normal.
+
+
+
+8. (6pts) Analyze the population and housing units in ExposureS_PopHo.xlsx using Holt-Winters models
+and propose the best model. Discuss the performance of this model and include the visual plots learned
+in class.
+
+```{r}
+GPL_train <- window(GPL_ts, end = c(2021, 4))
+GPL_test <- window(GPL_ts, start = c(2022, 1), end = c(2022, 2))
+GPL_test
+```
+
+In the above code we make our test model the first 2 quarters of 2022.
+
+```{r}
+## Creating different Models
+
+GPL_exp <- HoltWinters(GPL_train, beta=FALSE, gamma=FALSE) # Simple Exponential Smoothing
+GPL_trend <- HoltWinters(GPL_train, gamma=FALSE)           # Holt Model (Holt Winters, trend only)
+GPL_season <- HoltWinters(GPL_train, beta=FALSE)           # forcing trend coefficient to zero
+GPL_hw <- HoltWinters(GPL_train)                          # Hold Winters (trend & Season)
+```
+
+```{r}
+## Forcasting the models into the future
+GPL.exp <- forecast(GPL_exp, h=2)
+GPL.trend <- forecast(GPL_trend, h=length(GPL_test))
+GPL.season <- forecast(GPL_season, h=length(GPL_test))
+GPL.hw <- forecast(GPL_hw, h=length(GPL_test))
+```
+
+
+```{r}
+## PI=FALSE says NOT to plot Prediction intervals
+autoplot(window(GPL_train, start=c(1961,1))) + 
+  autolayer(GPL.exp, PI=FALSE, series="Exp Smoothing") +
+  autolayer(GPL.trend, PI=FALSE, series="HW Trend Only") +
+  autolayer(GPL.hw, PI=FALSE, series="Holt Winters") +
+  autolayer(GPL.season, PI=FALSE, series="HW Season Only") + 
+  autolayer(GPL_test, series="True Housing Per Person", size=0.5) +
+  labs(x="Year", y="Great Plain Lakes, Housing Units Per Person") +
+  theme_bw()
+```
+
+Looking at the plot above, it can be seen that all but 1 of the models appears to predict the next quarter Housing Per Person number very well. The one model that appears to struggle in this department is the HW trend only model, which has a starting well lower than the rest.
+
+```{r}
+autoplot(window(GPL_train, start=c(1961,1))) + 
+  autolayer(GPL.season, series="HW Season Only") + 
+  autolayer(GPL_test, series="True Housing Per Person", size=0.5) +
+  labs(x="Year", y="Great Plain Lakes, Housing Units Per Person") +
+  theme_bw()
+```
+Looking at the season Only vs True Housing Per person, we can see that both models appear to predict the data really well, however looking at the darker lines on the inside, it would appear that both very slightly miss the starting points.
+
+```{r}
+accuracy(GPL.exp, GPL_test)
+accuracy(GPL.trend, GPL_test)
+accuracy(GPL.season, GPL_test)
+accuracy(GPL.hw, GPL_test)
+```
+
+```{r}
+tab <- rbind(accuracy(GPL.exp, GPL_test)[2,2:3],
+             accuracy(GPL.trend, GPL_test)[2,2:3],
+             accuracy(GPL.season, GPL_test)[2,2:3],
+             accuracy(GPL.hw, GPL_test)[2,2:3] )
+rownames(tab) <- c("Exp Smoothing", "Holt (trend)", "HW (Season only)", "Holt Winters")
+kable(tab)
+```
+
+
+Looking at the table output above, we can see that every model has a very good accuracy for predicting the data, ultimately, the Holt-Winters Exponential model has lowest RMSE, so this will be the best model for predicting the data.
+
+```{r}
+GPL_exp.full <- HoltWinters(GPL_ts, beta=FALSE, gamma=FALSE) # Holt winters model, exp model
+GPL_exp.forecast <- forecast(GPL_exp.full, h=2)
+autoplot(window(GPL_ts, start=c(1961,1))) + 
+  autolayer(GPL_exp.forecast) + 
+  labs(x="Year", y="Great Plain Lakes, Housing Units Per Person") +
+  theme_bw()
+GPL_exp.forecast
+```
+
+This model performs extremely well, as it has a very good accuracy rate. When looking at the plot, although it is small hard to see the line looks to accurately predict where I would expect the Housing per person number to go.
+
+9) (4pts) Reflect on the in-class and take-home portion of the exam (a min 5 full sentences are required).
+
+When reflecting on the in-class portion of the exam, I felt that it wasn't incredibly difficult, there were a couple of questions I wasn't expecting to see, however, there was not anything that I felt unfairly represented the course material we have learned. The hardest part of the exam was the time management, I found myself with 2 problems left, when there was 8 minutes left in the exam, I was able to finish, however, it was not my best work as I was rushing to finish. For the take-home portion of the exam, it was a lot more difficult than I was expecting. The data wrangling required for the first few problems was really difficult to work with, and understanding what you were asking for with the data also felt very difficult. The take home exam, also took me a little over 8 hours to complete, which is not something that I was expecting. I was thinking that this part of the exam would be easier going into our first exam, and as I am finishing the take home part now, I feel as though I was completely wrong. I felt that I understood all the code we went over in class, however, when it came to setting up to data to be analyzed I have struggled.
