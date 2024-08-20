@@ -1,0 +1,596 @@
+---
+title: "Exam2"
+author: "Alex Rintamaa"
+date: "2024-04-25"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(forecast)
+library(knitr)
+library(stats)
+library(lubridate)
+library(tseries)
+
+library(ggplot2)
+library(stats)
+library(tidyverse)
+# For arranging of multiple plots
+library(gridExtra)
+# for kable function
+library(knitr)
+```
+
+```{r}
+Eventdf = read_csv("EventCostBDD.csv", skip = 1)
+
+head(Eventdf)
+
+WF_disas <- Eventdf %>%
+  dplyr::select(`Disaster Group`, `Central Day`, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, Yb, Mb, Db) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Central Day`)) %>%
+  filter(`Disaster Group` == "Winter/Freeze")
+
+SS_disas <- Eventdf %>%
+  dplyr::select(`Disaster Group`, `Central Day`, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, Yb, Mb, Db) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Central Day`)) %>%
+  filter(`Disaster Group` == "SevStorm/Flood")
+
+Cyc_disas <- Eventdf %>%
+  dplyr::select(`Disaster Group`, `Central Day`, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, Yb, Mb, Db) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Central Day`)) %>%
+  filter(`Disaster Group` == "Tropical Cyclone")
+
+Drought_disas <- Eventdf %>%
+  dplyr::select(`Disaster Group`, `Central Day`, Season, `Total CPI-Adjusted Cost (Millions of Dollars)`, Yb, Mb, Db) %>%
+  group_by(`Disaster Group`) %>%
+  mutate(Date = mdy(`Central Day`)) %>%
+  filter(`Disaster Group` == "WF/Drought")
+
+ts_wf <- ts(WF_disas$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1981, 1))
+ts_SS <- ts(SS_disas$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 4))
+ts_Cyc <- ts(Cyc_disas$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 8))
+ts_drought <- ts(Drought_disas$`Total CPI-Adjusted Cost (Millions of Dollars)`, start = c(1980, 8))
+```
+
+# Question 1
+
+1) (5pts) Run Periodogram on each time series based on disaster type. There are four disaster groups.
+Discuss your findings.
+
+## Winter Freeze Periodogram
+
+```{r}
+# Winter Freeze Periodogram
+spec.pgram(ts_wf,log="no",taper=0) 
+```
+
+From the periodogram above we note a huge spike at frequency $\omega=0.05$.
+Using the frequency above we will fit the following model $Y_t = \beta_0+\beta_1 t + \beta_2 cos(2\pi\omega t) +\beta_3 sin(2\pi\omega t) + X_t$
+
+I added the independent variable $t$ to see whether there is a linear trend in disaster type. Fit lm() model and check.
+
+
+## Severse Storm Periodogram
+
+```{r}
+# Severe Storm Periodogram
+spec.pgram(ts_SS,log="no",taper=0) 
+```
+
+From the periodogram above we note a huge spike at frequency $\omega=0.415$.
+Using the frequency above we will fit the following model $Y_t = \beta_0+\beta_1 t + \beta_2 cos(2\pi\omega t) +\beta_3 sin(2\pi\omega t) + X_t$
+
+I added the independent variable $t$ to see whether there is a linear trend in disaster type. Fit lm() model and check.
+
+## Cyclone Periodogram
+
+```{r}
+# Cyclone Periodogram
+spec.pgram(ts_Cyc,log="no",taper=0) 
+```
+
+From the periodogram above we note a huge spike at frequency $\omega=0.06$, we also notice another huge spike at 0.44, but we will analyze the fit model first, before working with the second spike
+Using the frequency above we will fit the following model $Y_t = \beta_0+\beta_1 t + \beta_2 cos(2\pi\omega t) +\beta_3 sin(2\pi\omega t) + X_t$
+
+I added the independent variable $t$ to see whether there is a linear trend in disaster type. Fit lm() model and check.
+
+## Drought Periodogram
+
+```{r}
+spec.pgram(ts_drought,log="no",taper=0) 
+```
+
+From the periodogram above we note a huge spike at frequency $\omega=0.3$.
+Using the frequency above we will fit the following model $Y_t = \beta_0+\beta_1 t + \beta_2 cos(2\pi\omega t) +\beta_3 sin(2\pi\omega t) + X_t$
+
+I added the independent variable $t$ to see whether there is a linear trend in disaster type. Fit lm() model and check.
+
+# Question 2
+
+2) (5pts) Perform a Dickey-Fuller test on each time series categorized by disaster type. Subsequently,
+discuss the outcomes and implications of your findings.
+
+## Dickey-Fuller Winter Freeze
+
+```{r}
+adf.test(ts_wf)
+```
+
+Here we see a p-value of 0.8598 this is greater than the 0.05 threshold, thus we will fail to reject the null hypothesis, and say that the Time Series where the disaster type is Winter Freeze, is non-stationary.
+
+## Dickey-Fuller SevereStorm
+
+```{r}
+adf.test(ts_SS)
+```
+Here we see a p-value <0.01 this is lower than the 0.05 threshold, thus we will reject the null hypothesis, and say that the Time Series for disaster type is SevereStorms, is stationary.
+
+## Dickey-Fuller Cyclone
+
+```{r}
+adf.test(ts_Cyc)
+```
+
+Here we see a p-value of 0.09177 this is greater than the 0.05 threshold, thus we will fail to reject the null hypothesis, and say that the Time Series where the disaster type is Cycloe, is non-stationary.
+
+## Dickey-Fuller Drought
+
+```{r}
+adf.test(ts_drought)
+```
+
+Here we see a p-value <0.01 this is lower than the 0.05 threshold, thus we will reject the null hypothesis, and say that the Time Series for disaster type is Drought, is stationary.
+
+# Question 3
+
+3) (10pts) Based on your findings, propose the best fitting time series regression model for each disaster
+group. This model should include trend, sine (sin()), and cosine (cos()) components. Provide the
+equation of the model for each disaster group, and discuss your results. If your Periodogram reveals
+many spikes, focus on the most significant ones when building the model.
+
+## Building Model for Winter Freeze
+
+From the periodogram above we will now make our model.
+
+```{r}
+t=1:length(ts_wf) 
+w=0.05
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t)
+
+fit_wf=lm(ts_wf~t+cs+si) 
+summary(fit_wf)
+
+wf_resi <- fit_wf$residuals
+wf_temp2 <- ts(wf_resi, start = c(1981, 1))
+ggAcf(wf_temp2)
+```
+
+From the results above, we observe that the only significant term is the cosine, so we will drop the seasonal trend t and the sine from the model.
+
+From the ACF plot we see that there are no lag values this appear to be affecting the data.
+
+
+```{r}
+fit_wf_final <- lm(ts_wf ~ cs)
+summary(fit_wf_final)
+
+wf_resi_final <- fit_wf_final$residuals
+```
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 4147 - 3013 cos(2\pi0.3 t)  + X_t$
+
+
+Now, we will proceed by finding the best time series model for $X_t$. However, first we will move on to the other disaster types.
+
+## Building Model for SevereStorm
+
+```{r}
+w=0.415
+t=1:length(ts_SS) 
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t) 
+fit_SS=lm(ts_SS~t+cs+si) 
+summary(fit_SS) 
+SS_resi <- fit_SS$residuals
+SS_temp2 <- ts(SS_resi, start = c(1980, 4))
+ggAcf(SS_temp2)
+```
+
+From the results above, we observe that the only significant term is the cosine, so we will drop the seasonal trend t and the sine from the model.
+
+From the ACF plot we see that there are no lag values this appear to be affecting the data.
+
+We will now build our final model.
+
+```{r}
+fit_ss_final <- lm(ts_SS ~ cs)
+summary(fit_ss_final)
+
+SS_resi_final <- fit_ss_final$residuals
+```
+
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 2828.4 - 665.8 cos(2\pi0.415 t) + X_t$
+
+
+Now, we will proceed by finding the best time series model for $X_t$. However, first we will move on to the other disaster types.
+
+## Building Model for Cyclone Disaster Type
+
+```{r}
+t=1:length(ts_Cyc) 
+w=0.06
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t) 
+fit_Cyc=lm(ts_Cyc~t+cs+si) 
+summary(fit_Cyc) 
+
+Cyc_resi <- fit_Cyc$residuals
+Cyc_temp2 <- ts(Cyc_resi, start = c(1980, 8))
+ggAcf(Cyc_temp2)
+```
+
+From the results above, we observe that the only significant term is the cosine, so we will drop the seasonal trend t and the sine from the model.
+
+From the ACF plot we see that lag 11 is slightly above the threshold and seems have an affect on the data so we will make a Periodogram to see any trends.
+
+```{r}
+spec.pgram(Cyc_resi,log="no",taper=0)
+```
+From the periodogram above we note a huge spike at frequency $\omega=0.44$.
+We will now fit another model with added cosine and sine values for our second $\omega$.
+
+```{r}
+w1=0.44
+cs1=cos(2*pi*w1*t) 
+si1=sin(2*pi*w1*t)
+fit_Cyc=lm(ts_Cyc~t+cs+si+cs1+si1) 
+summary(fit_Cyc) 
+
+Cyc_resi <- fit_Cyc$residuals
+Cyc_temp2 <- ts(Cyc_resi, start = c(1980, 8))
+ggAcf(Cyc_temp2)
+```
+
+From the results above, we observe that there are two significant terms, those being cosine and sine1, so we will drop the seasonal trend t, sine, and cosine1 from the model.
+
+From the ACF plot we see that there are no lag values this appear to be affecting the data.
+
+We will now build our final model
+
+```{r}
+fit_Cyc_final=lm(ts_Cyc~cs+si1)
+summary(fit_Cyc_final)
+
+Cyc_resi_final <- fit_Cyc_final$residuals
+```
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 21604 - 15172 cos(2\pi0.06 t) - 13852sin(2\pi0.44 t) X_t$
+
+
+Now, we will proceed by finding the best time series model for $X_t$. However, first we will move on to the last disaster types.
+
+## Building model for Drought Disaster Type
+
+```{r}
+t=1:length(ts_drought) 
+w=0.3
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t)
+fit_drought=lm(ts_drought~t+cs+si) 
+summary(fit_drought) 
+
+drought_resi <- fit_drought$residuals
+drought_temp2 <- ts(drought_resi, start = c(1980, 8))
+ggAcf(drought_temp2)
+```
+
+From the results above, we observe that the only significant term is the sine, so we will drop the seasonal trend t and the cosine from the model.
+
+From the ACF plot we see that there are no lag values this appear to be affecting the data.
+
+We will now build our final model.
+
+
+```{r}
+fit_drought_final=lm(ts_drought~si)
+summary(fit_drought_final)
+
+drought_resi_final <- fit_drought_final$residuals
+```
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 9362 + 6008 sin(2\pi0.3 t) + X_t$
+
+
+Now, we will proceed by finding the best time series model for $X_t$.
+
+# Question 4
+
+4) (20pts) Find the best SARIMA model for each disaster group. Provide the equation of this model by
+disaster group. Discuss your results.
+
+```{r}
+sarima=function(data,p,d,q,P=0,D=0,Q=0,S=-1){ 
+  n=length(data)
+  constant=1:n
+  xmean=matrix(1,n,1)
+  if (d>0)  
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S),xreg=constant,include.mean=F)
+  if (d<.00001)
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S),xreg=xmean,include.mean=F)
+  if (d+D>1)
+  fitit=arima(data, order=c(p,d,q), seasonal=list(order=c(P,D,Q), period=S))
+  if (S < 0) goof=20 else goof=3*S
+  tsdiag(fitit,gof.lag=goof)
+  k=length(fitit$coef)
+  BIC=log(fitit$sigma2)+(k*log(n)/n)
+  AICc=log(fitit$sigma2)+((n+k)/(n-k-2))
+  AIC=log(fitit$sigma2)+((n+2*k)/n)
+  list(fit=fitit, AIC=AIC, AICc=AICc, BIC=BIC)
+}
+```
+
+
+## Disaster Group Winter Freeze
+
+```{r}
+wf_fit1=sarima(wf_resi_final,1,0,1)
+wf_fit2=sarima(wf_resi_final,2,0,1)
+wf_fit3=sarima(wf_resi_final,1,0,2)
+wf_fit4=sarima(wf_resi_final,2,0,2)
+wf_fit5=sarima(wf_resi_final,3,0,2)
+wf_fit6=sarima(wf_resi_final,3,0,1)
+wf_fit7=sarima(wf_resi_final,1,0,0)
+wf_fit8=sarima(wf_resi_final,2,0,0)
+wf_fit9=sarima(wf_resi_final,3,0,0)
+```
+
+We can also loop through the possible models ARMA(p,q) up to lag 3. That is, we check an ARMA(1,0), ARMA(2,0), ... , ARMA(1,1), ARMA(1,2), ARMA(3,1) and so on....
+
+```{r}
+#This little function extracts the
+#AIC, AICc and BIC values from an Arima() fit
+getAIC <- function(fit) {
+  c(fit$AIC, fit$AICc, fit$BIC)
+}
+```
+
+We will summarize the AIC-related results in a table and display the table
+
+```{r}
+tab <- rbind(getAIC(wf_fit1), getAIC(wf_fit2), getAIC(wf_fit3),
+             getAIC(wf_fit4), getAIC(wf_fit5), getAIC(wf_fit6),
+            getAIC(wf_fit7), getAIC(wf_fit8), getAIC(wf_fit9))
+colnames(tab) <- c("AIC", "AICc", "BIC")
+rownames(tab) <- c("ARMA(1,1)","ARMA(2,1)","ARMA(1,2)","ARMA(2,2)",
+ "ARMA(3,2)","ARMA(3,1)","AR(1)", "AR(2)", "AR(3)")
+kable(tab)  #displays the table
+```
+
+From the table, using a combination of the AIC, AICc, and BIC values reported (remember when the values are within 2 of one another, they are essentially the same). We see that all of these models are the same. We want to choose the simplest model.
+
+
+```{r}
+wf_fit_zero_mean=sarima(wf_resi_final,0,0,0)
+ggAcf(wf_fit_zero_mean$fit$resid)
+```
+
+```{r}
+finalfit <- Arima(ts_wf, order=c(0, 0, 0))
+finalfit
+```
+
+Our best model comes out at as a non-zero mean ARIMA(0,0,0), this is an indication of a constant mean.
+Our model equation being \[ X_t = 4336.5774\]
+
+To validate our model along with check for seasonality we will call the auto.arima() function.
+
+```{r}
+auto.arima(ts_wf)
+```
+
+The auto.arima() function above supports our cliam for the best SARIMA model for the Winter Freeze Time Series.
+
+## Disaster Group Severe Storm
+
+```{r}
+ss_fit1=sarima(SS_resi_final,1,0,1)
+ss_fit2=sarima(SS_resi_final,2,0,1)
+ss_fit3=sarima(SS_resi_final,1,0,2)
+ss_fit4=sarima(SS_resi_final,2,0,2)
+ss_fit5=sarima(SS_resi_final,3,0,2)
+ss_fit6=sarima(SS_resi_final,3,0,1)
+ss_fit7=sarima(SS_resi_final,1,0,0)
+ss_fit8=sarima(SS_resi_final,2,0,0)
+ss_fit9=sarima(SS_resi_final,3,0,0)
+```
+
+We can also loop through the possible models ARMA(p,q) up to lag 3. That is, we check an ARMA(1,0), ARMA(2,0), ... , ARMA(1,1), ARMA(1,2), ARMA(3,1) and so on....
+
+```{r}
+#This little function extracts the
+#AIC, AICc and BIC values from an Arima() fit
+getAIC <- function(fit) {
+  c(fit$AIC, fit$AICc, fit$BIC)
+}
+```
+
+We will summarize the AIC-related results in a table and siplay the table
+
+```{r}
+tab <- rbind(getAIC(ss_fit1), getAIC(ss_fit2), getAIC(ss_fit3),
+             getAIC(ss_fit4), getAIC(ss_fit5), getAIC(ss_fit6),
+            getAIC(ss_fit7), getAIC(ss_fit8), getAIC(ss_fit9))
+colnames(tab) <- c("AIC", "AICc", "BIC")
+rownames(tab) <- c("ARMA(1,1)","ARMA(2,1)","ARMA(1,2)","ARMA(2,2)",
+ "ARMA(3,2)","ARMA(3,1)","AR(1)", "AR(2)", "AR(3)")
+kable(tab)  #displays the table
+```
+
+From the table, using a combination of the AIC, AICc, and BIC values reported (remember when the values are within 2 of one another, they are essentially the same). We see that all of these models are the same. We want to choose the simplest model.
+
+For now, let us consider the $AR(1)$ model for simplicity.
+
+```{r}
+ss_fit_zero_mean=sarima(SS_resi_final,0,0,0)
+ggAcf(ss_fit_zero_mean$fit$resid)
+```
+
+```{r}
+finalfit <- Arima(ts_SS, order=c(0, 0, 0))
+finalfit
+```
+
+Our best model comes out at as a non-zero mean ARIMA(0,0,0), this is an indication of a constant mean.
+Our model equation being \[ X_t = 2831.0648\]
+
+To validate our model along with check for seasonality we will call the auto.arima() function.
+
+```{r}
+auto.arima(ts_SS)
+```
+
+The auto.arima() function directly above supports our claim of ARIMA(0,0,0) being the best model.
+
+## Disaster Group Cyclone
+
+```{r}
+cyc_fit1=sarima(Cyc_resi_final,1,0,1)
+cyc_fit2=sarima(Cyc_resi_final,2,0,1)
+cyc_fit3=sarima(Cyc_resi_final,1,0,2)
+cyc_fit4=sarima(Cyc_resi_final,2,0,2)
+cyc_fit6=sarima(Cyc_resi_final,3,0,1)
+cyc_fit7=sarima(Cyc_resi_final,1,0,0)
+cyc_fit8=sarima(Cyc_resi_final,2,0,0)
+cyc_fit9=sarima(Cyc_resi_final,3,0,0)
+```
+
+
+We can also loop through the possible models ARMA(p,q) up to lag 3. That is, we check an ARMA(1,0), ARMA(2,0), ... , ARMA(1,1), ARMA(1,2), ARMA(3,1) and so on....
+
+```{r}
+#This little function extracts the
+#AIC, AICc and BIC values from an Arima() fit
+getAIC <- function(fit) {
+  c(fit$AIC, fit$AICc, fit$BIC)
+}
+```
+
+We will summarize the AIC-related results in a table and siplay the table
+
+```{r}
+tab <- rbind(getAIC(cyc_fit1), getAIC(cyc_fit2), getAIC(cyc_fit3),
+             getAIC(cyc_fit4), getAIC(cyc_fit6),
+            getAIC(cyc_fit7), getAIC(cyc_fit8), getAIC(cyc_fit9))
+colnames(tab) <- c("AIC", "AICc", "BIC")
+rownames(tab) <- c("ARMA(1,1)","ARMA(2,1)","ARMA(1,2)","ARMA(2,2)","ARMA(3,1)","AR(1)", "AR(2)", "AR(3)")
+kable(tab)  #displays the table
+```
+
+From the table, using a combination of the AIC, AICc, and BIC values reported (remember when the values are within 2 of one another, they are essentially the same). We see that all of these models are the same. We want to choose the simplest model.
+
+For now, let us consider the $AR(1)$ model for simplicity.
+
+```{r}
+cyc_fit_zero_mean=sarima(Cyc_resi_final,0,0,0)
+ggAcf(cyc_fit_zero_mean$fit$resid)
+```
+
+```{r}
+finalfit <- Arima(ts_Cyc, order=c(0, 0, 0))
+finalfit
+```
+Our best model comes out at as a non-zero mean ARIMA(0,0,0), this is an indication of a constant mean.
+Our model equation being \[ X_t = 22244.536\]
+
+To validate our model along with check for seasonality we will call the auto.arima() function.
+
+
+```{r}
+auto.arima(ts_Cyc)
+```
+The auto.arima() function above backs up our claim of the best model being a constant model.
+
+## Disaster Group WF/Drought
+
+```{r}
+drought_fit1=sarima(drought_resi_final,1,0,1)
+drought_fit2=sarima(drought_resi_final,2,0,1)
+drought_fit3=sarima(drought_resi_final,1,0,2)
+drought_fit4=sarima(drought_resi_final,2,0,2)
+drought_fit6=sarima(drought_resi_final,3,0,1)
+drought_fit7=sarima(drought_resi_final,1,0,0)
+drought_fit8=sarima(drought_resi_final,2,0,0)
+drought_fit9=sarima(drought_resi_final,3,0,0)
+```
+
+We can also loop through the possible models ARMA(p,q) up to lag 3. That is, we check an ARMA(1,0), ARMA(2,0), ... , ARMA(1,1), ARMA(1,2), ARMA(3,1) and so on....
+
+```{r}
+#This little function extracts the
+#AIC, AICc and BIC values from an Arima() fit
+getAIC <- function(fit) {
+  c(fit$AIC, fit$AICc, fit$BIC)
+}
+```
+
+We will summarize the AIC-related results in a table and siplay the table
+
+```{r}
+tab <- rbind(getAIC(drought_fit1), getAIC(drought_fit2), getAIC(drought_fit3),
+             getAIC(drought_fit4), getAIC(drought_fit6),
+            getAIC(drought_fit7), getAIC(drought_fit8), getAIC(drought_fit9))
+colnames(tab) <- c("AIC", "AICc", "BIC")
+rownames(tab) <- c("ARMA(1,1)","ARMA(2,1)","ARMA(1,2)","ARMA(2,2)","ARMA(3,1)","AR(1)", "AR(2)", "AR(3)")
+kable(tab)  #displays the table
+```
+
+From the table, using a combination of the AIC, AICc, and BIC values reported (remember when the values are within 2 of one another, they are essentially the same). We see that all of these models are the same. We want to choose the simplest model.
+
+For now, let us consider the $AR(1)$ model for simplicity.
+
+```{r}
+drought_fit_zero_mean=sarima(drought_resi_final,0,0,0)
+ggAcf(drought_fit_zero_mean$fit$resid)
+```
+
+```{r}
+finalfit <- Arima(ts_drought, order=c(0, 0, 0))
+finalfit
+```
+
+Our best model comes out at as a non-zero mean ARIMA(0,0,0), this is an indication of a constant mean.
+Our model equation being \[ X_t = 9336.021\]
+
+To validate our model along with check for seasonality we will call the auto.arima() function.
+
+```{r}
+auto.arima(ts_drought)
+```
+This code above directly validates our ARIMA(0,0,0) being the best model for the time series Drought.
+
+5) (5pts) Refer to the seasonal means models you built for each disaster group in Exam-1. Compare and
+contrast those results with the findings from questions (3) and (4) above. Based on this analysis, provide
+recommendations with justifications on which model should be used for modeling the cost of each
+disaster group. Please provide a minimum of five sentences for your response.
+
+In comparing the results of the seasonal means models I built for each disaster group in Exam-1, we can see that both models struggles with having any significant predictors besides the intercept term. However, for the models build from the periodogram in question 3, we can see there was atleast one predictor per disaster group which is more than what was seen from the models in the last project. For a winter/freeze model my recommendation would be to use the model in question 4. I would use this model because it shows the least amount of predictors and it is the simpler model for this time series and by the Dickey-Fuller test, we know that this time series is not stationary, thus I would use a non-stationary model as scene in question 4. For a SevereStorm/Flooding model, I would use the seasonal means model from exam 1, as a result of the dickey-fuller test telling us the model is stationary, and both the models done in exam 2 are non stationary models. For Cyclones/Tropical, I would choose model from question 4. From the dickey-fuller test we know this model is not stationary, which leads us to believe we should be using a model from exam 2. We use the model from question 4 as a result of the constant mean model being much simpler than a cosine/sine predictor model. For the final disaster group being WF/drought, my recommendation would be the seasonal means model from Exam 1. The dickey-fuller test here tells us this model is stationary, so we would lean with the stationary assumption from the model seen in exam 1. This model also has only 1 significant predictor making it a very simpler model to work with.
+
+6) (5pts) Reflect on the in-class and take-home portion of the exam (a minimum of five sentences are
+required for full credit).
+
+In reflecting of the in-class and the take-home portion of the exam, I have a couple of thoughts. In regards to the in-class portion of the exam, I felt it wasn't too difficult, besides how long it took to complete. For the first problem, I got very confused on how to take an expected value of the something were we never told if it was a zero or non-zero mean which made it hard for the timing aspect because I kept second guessing myself. Also I felt that question 1 was so logn that it made it to where I didn't have time to start question 2. For the take-home portion of the exam, I felt it was a little difficult to analyze the periodograms for the model equations because they looked different then ones we have seen before. Also, when finding the SARIMA models it was difficult to analyze a non-zero mean with no significant predictors, this was another thing that seems wrong, but I have done everything right up to it. I think that the take-home exam was not coding wise difficult like the first one, however, it was tedious and some of the analysis was quite difficult.
