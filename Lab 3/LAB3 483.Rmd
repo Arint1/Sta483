@@ -1,0 +1,155 @@
+---
+title: "Lab 4 STA 483"
+author: "Alex Rintamaa"
+date: '2024-02-23'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(tidyverse)
+library(forecast)
+library(stringr)
+library(lubridate)
+library(knitr)
+```
+
+(1pt) Rerun the TS plot that you submitted for your earlier LAB and discuss your observations
+
+```{r}
+lab_data <- read_excel("PET_PRI_GND_DCUS_R20_M.xlsx", sheet = "Data 1", skip = 2)
+dim(lab_data)
+
+lab_data_wrangled <- lab_data %>%
+  select(Date, `Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+
+lab_data_all <- lab_data %>%
+  select(Date, `Midwest All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+
+lab_data_midgrade <- lab_data %>%
+  select(Date, `Midwest Midgrade Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+
+ggplot() +
+  geom_line(aes(x=Date, y=`Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "green", data=lab_data_wrangled) +
+  geom_line(aes(x=Date, y=`Midwest All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "blue", data=lab_data_all) +
+  geom_line(aes(x=Date, y=`Midwest Midgrade Conventional Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "orange", data=lab_data_midgrade) + 
+  labs(x="Time", y = "Midwest Regular, All Formulations, and Midgrade Gas Prices ", title = "Time Series Plot-Average Weekly Midwestern Gas Prices 1995-2012", color = "Legend") +
+  theme_bw() 
+```
+
+From the plot above it can be seen that the Gas prices have increased tremendously from 2000 and on. We can see that the data does not appear to be stationary because of a non constant mean. Because we have a comparison of three different grade types of gas, it can be seen that Midgrade conventional has stayed the most expensive throughout history.
+
+2. (2pts) Decompose this TS into three components using stl() function. Create a new plot. Discuss your findings.
+
+
+```{r pressure, echo=FALSE}
+reduced_data <- lab_data %>%
+  select(Date, `Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na() %>%
+  mutate(year = year(Date),
+         month = month(Date))
+
+midwest_data <- reduced_data %>%
+  select(year, month, `Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  arrange(year, month)
+
+reduced.ts <- ts(midwest_data$`Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`, start=c(1992, 6), frequency=12)
+
+autoplot(stl(reduced.ts, s.window="periodic"))
+```
+From this data we can see the presence of each ts object, being seasonality, remainder and trend. Looking at these three different objects, we can see an increase for the trend data, whereas seasonal appears to be stationary. Looking at time there is a very strong increase right around the start of the World War 2.
+
+Run ggmonthplot(). Discuss your observations.
+
+```{r}
+ggmonthplot(reduced.ts)
+```
+The data shows a slight trend of increase in gas prices throughout the summer, however the increase seems fairly weak. This likely happens as a result of increased travel and demand for gas.
+
+Run ggseasonplot(). Discuss your observations.
+
+```{r}
+ggseasonplot(reduced.ts)
+```
+
+Here we see that there is a slight increase throughout the summer, however this increase is very weak suggesting very slight seasonality. The more glaring change is how prices have changed throughout years, suggestign that exportation of gas has become more costly.
+
+Predict the prices for remainder of the last year. Discuss your findings.
+
+```{r}
+reduced.train <- window(reduced.ts, end=c(2019, 6))
+reduced.test <- window(reduced.ts, start=c(2019, 7), end=c(2019, 12))
+reduced.test
+```
+
+```{r}
+reduced.exp <- HoltWinters(reduced.train, beta=FALSE, gamma=FALSE) # Simple Exponential Smoothing
+reduced.trend <- HoltWinters(reduced.train, gamma=FALSE)           # Holt Model (Holt Winters, trend only)
+reduced.season <- HoltWinters(reduced.train, beta=FALSE)           # forcing trend coefficient to zero
+reduced.hw <- HoltWinters(reduced.train)                          # Hold Winters (trend & Season)
+```
+
+```{r}
+reduced.for.exp <- forecast(reduced.exp, h=6)
+reduced.for.trend <- forecast(reduced.trend, h=length(reduced.test))
+reduced.for.season <- forecast(reduced.season, h=length(reduced.test))
+reduced.for.hw <- forecast(reduced.hw, h=length(reduced.test))
+```
+
+```{r}
+## PI=FALSE says NOT to plot Prediction intervals
+autoplot(window(reduced.train, start=c(2014,1))) + 
+  autolayer(reduced.for.exp, PI=FALSE, series="Exp Smoothing") +
+  autolayer(reduced.for.trend, PI=FALSE, series="HW Trend Only") +
+  autolayer(reduced.for.hw, PI=FALSE, series="Holt Winters") +
+  autolayer(reduced.for.season, PI=FALSE, series="HW Season Only") + 
+  autolayer(reduced.test, series="True Gas Prices", size=1.5) +
+  labs(x="Year", y="Midwest Conventional Gas Prices (Dollars Per Gallon)") +
+  theme_bw()
+```
+```{r}
+autoplot(window(reduced.train, start=c(2014,1))) + 
+  autolayer(reduced.for.season, series="HW Season Only") + 
+  autolayer(reduced.test, series="True Gas Prices") +
+  labs(x="Year", y="Midwest Conventional Gas Prices (Dollars Per Gallon)") +
+  theme_bw()
+```
+
+
+```{r}
+accuracy(reduced.for.exp, reduced.test)
+accuracy(reduced.for.trend, reduced.test)
+accuracy(reduced.for.season, reduced.test)
+accuracy(reduced.for.hw, reduced.test)
+```
+
+
+```{r}
+tab <- rbind(accuracy(reduced.for.exp, reduced.test)[2,2:3],
+             accuracy(reduced.for.trend, reduced.test)[2,2:3],
+             accuracy(reduced.for.season, reduced.test)[2,2:3],
+             accuracy(reduced.for.hw, reduced.test)[2,2:3] )
+rownames(tab) <- c("Exp Smoothing", "Holt (trend)", "HW (Season only)", "Holt Winters")
+kable(tab)
+```
+
+From the output above the Holt Winters predicts the data the best, as a result of having
+the lowest RMSE, and the plot above.
+
+
+```{r}
+reduced.hw.full <- HoltWinters(reduced.ts, beta=FALSE) # HW Season only
+reduced.hw.forecast <- forecast(reduced.hw.full, h=6)
+autoplot(window(reduced.ts, start=c(2015,1))) + 
+  autolayer(reduced.hw.forecast) + 
+  labs(x="Year", y="Midwest Conventional Gas Prices (Dollars Per Gallon)") +
+  theme_bw()
+reduced.hw.forecast
+```
+Reflect on this LAB. Consider the following questions: What did you learn from this LAB? How closely this LAB was related to the demos presented in class? Has this LAB enhanced your understanding of the TS analysis presented in Module on Trends? What would you change in this LAB to make it easier for students in this course?
+
+From this LAB I learned how to find the best model for predicting a time series. This LAB is very closely related to the demos presented in class, I think the demos do a good job of explaining how the data wrangling should be done and what all the plots mean. This LAB has enhanced my understanding of the TS analysis presented in Module on Trends. I don't think there is anything that could be changed.
