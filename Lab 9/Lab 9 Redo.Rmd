@@ -1,0 +1,62 @@
+---
+title: "Lab 9"
+author: "Alex Rintamaa"
+date: "2024-04-05"
+output: html_document
+---
+
+This demo has a purpose to illustrate the application of an important visual tool in the time series analysis. 
+
+Many time series data show periodic behavior. This periodic behavior can be very complex and difficult to detect by eye. Spectral analysis is a technique that allows us to discover underlying periodicities. To perform spectral analysis, we first must transform data from time domain to frequency domain. We will not go into details of the spectral analysis, but we will focus on the most important tool and the application relevant to our class.
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tseries)
+library(forecast)
+library(ggplot2)
+library(stats)
+library(tidyverse)
+# For arranging of multiple plots
+library(gridExtra)
+# for kable function
+library(knitr)
+```
+
+First let's read in the data and plot it.
+```{r}
+#monthly temperature data for England from 1723 to 1970 (in Celsius) 
+engtemp=scan("tpmon.dat",skip=1)
+
+engtemp_sub1 = engtemp[-c(1:10)]
+
+temp <- ts(engtemp_sub1, start=c(1723,11), frequency=12)
+autoplot(temp) +
+  labs(x="Year", y="Temperature Data for England 1723-1970") +
+  theme_bw()
+```
+
+
+```{r}
+spec.pgram(engtemp_sub1,log="no",taper=0) 
+abline(v=1/12)
+```
+
+
+
+```{r}
+w=1/12 
+t=1:length(engtemp_sub1) 
+cs=cos(2*pi*w*t) 
+si=sin(2*pi*w*t) 
+fit=lm(engtemp_sub1~t+cs+si) 
+summary(fit)
+```
+
+Based on these results, we suspect that frequency of $\omega=1/12$ can be used. We will also add additional terms to the model $cs=cos(2\pi\frac{1}{12}t)$ and $si=sin(2\pi\frac{1}{12}t)$ and refit the model again with these additional terms.
+
+Usually the frequencies around zero are not of our interest. Thus the model that we will use to remove the seasonal trend is 
+$Y_t = 9.53 -0.001 t + 0.85 cos(2\pi\omega t/12) -6.53 sin(2\pi\omega t/12) + E$
+
+Reflect on this LAB. Which part was the most challenging? What did you learn from this LAB? Are you ready to model a real data set with a non-stationary TS? Elaborate using a min 5 full sentences
+
+The most challenging part of this lab was finding the value for the omega value. Reading from the periodogram is the most difficult part. What I learned from this lab was how to evaluate a periodogram from scratch. Yes, I am ready to model a real data set with a non-stationary TS, I feel these can be a little bit harder to get through. I learned that it matters for which data set you use, as I had different answers then some other students in the class. I think models with a non-stationary TS, have a more interesting analysis to them.
