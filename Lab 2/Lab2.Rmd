@@ -1,0 +1,55 @@
+---
+title: "Lab 2"
+author: "Alex Rintamaa"
+date: '2024-02-05'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(tidyverse)
+library(forecast)
+library(stringr)
+library(lubridate) 
+```
+
+## R Markdown
+
+
+```{r}
+lab_data <- read_excel("PET_PRI_GND_DCUS_R20_M.xlsx", sheet = "Data 1", skip = 2)
+lab_data
+dim(lab_data)
+```
+
+
+
+
+```{r}
+lab_data_wrangled <- lab_data %>%
+  select(Date, `Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+
+lab_data_all <- lab_data %>%
+  select(Date, `Midwest All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+
+lab_data_midgrade <- lab_data %>%
+  select(Date, `Midwest Midgrade Conventional Retail Gasoline Prices (Dollars per Gallon)`) %>%
+  drop_na()
+```
+
+```{r}
+ggplot() +
+  geom_line(aes(x=Date, y=`Midwest Regular Conventional Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "green", data=lab_data_wrangled) +
+  geom_line(aes(x=Date, y=`Midwest All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "blue", data=lab_data_all) +
+  geom_line(aes(x=Date, y=`Midwest Midgrade Conventional Retail Gasoline Prices (Dollars per Gallon)`), size = 1, color = "orange", data=lab_data_midgrade) + 
+  labs(x="Time", y = "Midwest Regular, All Formulations, and Midgrade Gas Prices ", title = "Time Series Plot-Average Weekly Midwestern Gas Prices 1995-2012", color = "Legend") +
+  theme_bw() 
+```
+
+From the time series plot above, we can see that the midwest regular gas prices, shown in the green, have stayed lower throughout history than all the grades, and the midgrade. The regular grade was the first recorded data, and the midgrade pictured in orange is the last one.
+
+
+I think lab 2 was fairly easy once I figured out the direction, I wanted to go.
